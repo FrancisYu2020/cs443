@@ -29,6 +29,9 @@ def listen_for_exit():
 
 # Specify the file path for saving the CSV
 csv_file_path = 'red_pixels_coordinates.csv'
+global_start_timestamp = [5, 36, 10]
+
+annotator = Annotator(global_start_timestamp)
 
 # Set up and start the listener thread for early exit
 listener_thread = threading.Thread(target=listen_for_exit)
@@ -39,8 +42,8 @@ prev_screen = cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2BGR)
 
 epoch_count = 0
 
-# Main loop
-total_count = 10
+# Main loops
+total_count = 5
 while total_count:
     total_count -= 1
 
@@ -49,8 +52,8 @@ while total_count:
     new_screen = cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2BGR)
     
     # Check if the screen has changed significantly
-    if screen_changed(prev_screen, new_screen):
-        process_screenshot(new_screen, csv_file_path)
+    if annotator.screen_changed(prev_screen, new_screen):
+        annotator.process_screenshot(new_screen, csv_file_path)
         epoch_count += 1
 
     # Update the previous screen
@@ -61,6 +64,7 @@ while total_count:
 
     # Add a delay or a method to exit the loop if necessary
 print(f'total epoch counted: {epoch_count}')
+running = False
 
 listener_thread.join()
 print('Program terminated')
