@@ -84,7 +84,7 @@ class Annotator:
         # Indices where the difference is greater than 1
         split_indices = np.where(diff > self.gap_threshold)[0] + 1
         # if no intervals, we directly return empty list
-        if not split_indices:
+        if len(split_indices) == 0:
             return []
         # Split the array into sub-arrays where the difference between numbers is more than 1
         sub_arrays = np.split(arr, split_indices)
@@ -138,10 +138,8 @@ class Annotator:
         return: None
         ''' 
         # Find red pixels
-        height, width, _ = screenshot.shape
         red_pixels = screenshot[self.top_margin : self.bottom, self.left_margin : -self.right_margin, ...]
 
-        # red_pixels = np.where(red_pixels[:, :, 2] == 234)
         red_pixels = np.where((red_pixels[:, :, 2] > 200) & (red_pixels[:, :, 1] < 100) & (red_pixels[:, :, 0] < 100))
         coordinates = red_pixels[1] + self.left_margin
         intervals = self.compress_intervals(coordinates)
@@ -158,6 +156,6 @@ class Annotator:
                 cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
 
         # Display the modified screenshot
-        cv2.imwrite('test.png', screenshot)
+        cv2.imwrite(f'test_{screenshot_idx}.png', screenshot)
 
 

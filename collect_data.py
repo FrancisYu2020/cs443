@@ -20,11 +20,13 @@ def listen_for_exit():
     '''
     global running
     print('Press "Esc" to exit...')
-    while running:
-        if keyboard.is_pressed('esc'):
-            running = False
-            break
-        time.sleep(0.1)
+    keyboard.wait('esc')
+    running = False
+    # while running:
+    #     if keyboard.is_pressed('esc'):
+    #         running = False
+    #         break
+    #     time.sleep(0.1)
 
 # Specify the file path for saving the CSV
 csv_file_path = 'red_pixels_coordinates.csv'
@@ -42,9 +44,10 @@ epoch_count = 0
 annotator.process_screenshot(prev_screen, epoch_count)
 
 # Main loops
-total_count = 50000000
-while total_count:
-    total_count -= 1
+# total_count = 50000000
+# while total_count:
+#     total_count -= 1
+while running:
 
     # Capture a new screen after some time
     # new_screen = cv2.cvtColor(np.array(ImageGrab.grab()), cv2.COLOR_BGR2GRAY)
@@ -54,13 +57,12 @@ while total_count:
     if annotator.screen_changed(prev_screen, new_screen):
         epoch_count += 1
         annotator.process_screenshot(new_screen, epoch_count)
-        epoch_count += 1
 
     # Update the previous screen
     prev_screen = new_screen
 
     # prevent busy loop
-    time.sleep(0.5)
+    time.sleep(1)
 
     # Add a delay or a method to exit the loop if necessary
 print(f'total epoch counted: {epoch_count}')
