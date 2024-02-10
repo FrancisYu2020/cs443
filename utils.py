@@ -145,15 +145,11 @@ class Annotator:
         red_pixels = np.where((red_pixels[:, :, 2] > 200) & (red_pixels[:, :, 1] < 100) & (red_pixels[:, :, 0] < 100))
         coordinates = red_pixels[1] + self.left_margin
         intervals = self.compress_intervals(coordinates)
-        # coordinates = list(zip(red_pixels[1] + left_margin, [45 + top_margin] * len(red_pixels[0])))
-        # print(np.array(coordinates).shape)
-        # print(compress_intervals(np.array(coordinates)[:, 0]))
-        # coordinates = list(zip(red_pixels[1] + left_margin, red_pixels[0] + top_margin))
 
         # Save to CSV
         df = pd.DataFrame(self.intervals_to_timestamps(intervals, screenshot_idx), columns=['start_h', 'start_min', 'start_s', 'end_h', 'end_min', 'end_s'])
         df.to_csv(self.csv_file_path, mode='a', index=False, header=not os.path.exists(self.csv_file_path))
-        print(f"Screenshot taken and red pixels identified. Data appended to {self.csv_file_path}.")
+        # print(f"Screenshot taken and red pixels identified. Data appended to {self.csv_file_path}.")
 
         # visualization
         for i in range(len(coordinates)):
@@ -164,51 +160,4 @@ class Annotator:
         # Display the modified screenshot
         cv2.imwrite('test.png', screenshot)
 
-
-# Function to handle key press
-def on_press(key):
-    # Check if the key is the "enter" key
-        if key == keyboard.Key.enter:
-            # Take a screenshot
-            screenshot = pyautogui.screenshot()
-            screenshot = np.array(screenshot)
-            screenshot = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
-            # print(screenshot.shape)
-            
-            # Find red pixels
-            height, width, _ = screenshot.shape
-            top_margin, left_margin = 803, 200
-            red_pixels = screenshot[top_margin:867, left_margin:-10, ...]
-
-            # red_pixels = np.where(red_pixels[:, :, 2] == 234)
-            red_pixels = np.where((red_pixels[:, :, 2] > 200) & (red_pixels[:, :, 1] < 100) & (red_pixels[:, :, 0] < 100))
-            coordinates = list(zip(red_pixels[1] + left_margin, [45 + top_margin] * len(red_pixels[0])))
-            print(np.array(coordinates).shape)
-            print(compress_intervals(np.array(coordinates)[:, 0]))
-            # coordinates = list(zip(red_pixels[1] + left_margin, red_pixels[0] + top_margin))
-
-            # Save to CSV
-            df = pd.DataFrame(np.array(coordinates).reshape(-1, 1), columns=['X'])
-            df.to_csv(csv_file_path, mode='a', index=False, header=not os.path.exists(csv_file_path))
-            print(f"Screenshot taken and red pixels identified. Data appended to {csv_file_path}.")
-            print('Hello')
-
-            for i in range(len(coordinates)):
-                point_position = coordinates[i]
-                # point_position = [coordinates[i][0], int(0.4 * height)]
-                if coordinates[i][1] < 867:
-                    # print(coordinates[i])
-                # if 1:
-                    cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
-            # print(len(coordinates), screenshot[868, 2234])
-            
-            # Display the modified screenshot
-            cv2.imwrite('test.png', screenshot)
-            return False
-
-        # elif key.char == 'x':
-        elif key == keyboard.Key.esc:
-            # stop listener
-            return False
-        
 
