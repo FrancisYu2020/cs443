@@ -9,7 +9,7 @@ import time
 import threading
 from utils import *
 
-#TODO: finish streaming the screenshots
+#TODO: take the screenshot three times with some pause in between and vote which one is the actual current scene
 
 # Define global variables here
 running = True
@@ -30,7 +30,7 @@ def listen_for_exit():
 
 # Specify the file path for saving the CSV
 csv_file_path = 'red_pixels_coordinates.csv'
-global_start_timestamp = [5, 36, 10]
+global_start_timestamp = [21, 49, 26]
 
 annotator = Annotator(global_start_timestamp)
 
@@ -62,7 +62,7 @@ while running:
     prev_screen = new_screen
 
     # prevent busy loop
-    time.sleep(1)
+    time.sleep(0.5)
 
     # Add a delay or a method to exit the loop if necessary
 print(f'total epoch counted: {epoch_count}')

@@ -156,6 +156,8 @@ class Annotator:
                 cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
 
         # Display the modified screenshot
-        cv2.imwrite(f'test_{screenshot_idx}.png', screenshot)
+        if not os.path.exists('debug'):
+            os.mkdir('debug')
+        cv2.imwrite(f'debug/test_{screenshot_idx}.png', screenshot)
 
 
