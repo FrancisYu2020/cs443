@@ -13,7 +13,7 @@ class Annotator:
                  top_margin=370, left_margin=107, right_margin=10, bottom=413, \
                  interval_length=60, gap_threshold=5, screen_change_threshold=0.01, \
                  csv_file_path='red_pixels_coordinates.csv', roi=(689, 81, 734, 99), \
-                 snapshots_path=None) -> None:
+                 snapshots_path=None, show_debug=False) -> None:
         '''
         global_start_timestamp: the timestamp where the recordings started to play
         screenshot_width: the width of the screenshot, will be initialized if set to None
@@ -42,6 +42,7 @@ class Annotator:
         self.roi = roi
         self.snapshots_path = snapshots_path
         self.start_idx = start_idx
+        self.show_debug = show_debug
 
         # initialize the screenshot width by taking a screenshot and check if screenshot width is not specified
         if self.screenshot_width is None:
@@ -165,7 +166,6 @@ class Annotator:
         coordinates = red_pixels[1] + self.left_margin
         intervals = self.compress_intervals(coordinates)
         print(intervals)
-        # self.debug_draw(screenshot, self.left_margin, self.top_margin, self.screenshot_width - self.right_margin, self.bottom)
 
         # visualization
         for start, end in intervals:
@@ -174,12 +174,14 @@ class Annotator:
         # Save to CSV
         df = pd.DataFrame(self.intervals_to_timestamps(intervals, screenshot_idx), columns=['start_h', 'start_min', 'start_s', 'end_h', 'end_min', 'end_s'])
         df.to_csv(self.csv_file_path, mode='a', index=False, header=not os.path.exists(self.csv_file_path))
-        # print(f"Screenshot taken and red pixels identified. Data appended to {self.csv_file_path}.")
+
+        if self.show_debug:
+            self.debug_draw(screenshot, self.left_margin, self.top_margin, self.screenshot_width - self.right_margin, self.bottom)
 
         # Display the modified screenshot
         if self.snapshots_path:
-            if not os.path.exists('debug'):
-                os.mkdir('debug')
+            if not os.path.exists(self.snapshots_path):
+                os.mkdir(self.snapshots_path)
             cv2.imwrite(os.path.join(self.snapshots_path, f'{screenshot_idx}.png'), screenshot)
     
     def debug_draw(self, img, l, u, r, d, color=(255, 0, 0), thickness=2):

@@ -15,12 +15,15 @@ parser.add_argument('start_frame', type=int, help="The index of the start frame"
 parser.add_argument('start_timestamp', type=str, help="The start timestamp, format hh:mm:ss")
 parser.add_argument('snapshots_path', type=str, help="Path to which the snapshots during the labeling are stored")
 parser.add_argument('--csv', type=str, help="csv file path to store the labeled data, if .csv is not add, it will be automatically processed", default="EMG_label.csv")
+parser.add_argument('--show_debug', action='store_false', help="show the debug bounding boxes in snapshots if true")
 
 args = parser.parse_args()
 
 #TODO: debug the whole pipeline
 
-#NOTE: left leg y axis: 373, right leg y axis: 393, left margin: 107, right margin: 10
+#NOTE: left margin: 107, right margin: 10
+#NOTE: 12-13-23 left leg y axis: 373, right leg y axis: 393
+#NOTE: 02-15-24 left leg y axis: 
 
 # Define global variables here
 running = True
@@ -37,9 +40,10 @@ def listen_for_exit():
 # Specify the file path for saving the CSV
 global_start_timestamp = args.start_timestamp.split(':')
 global_start_timestamp = [float(x) for x in global_start_timestamp]
-print(global_start_timestamp)
+top_margin, bottom = 100, 200
+print(f'current snapshots path is: {args.snapshots_path}')
 
-annotator = Annotator(global_start_timestamp, args.start_frame, csv_file_path=args.csv, snapshots_path='debug')
+annotator = Annotator(global_start_timestamp, args.start_frame, top_margin=top_margin, bottom=bottom, csv_file_path=args.csv, snapshots_path=args.snapshots_path, show_debug=args.show_debug)
 
 # Set up and start the listener thread for early exit
 listener_thread = threading.Thread(target=listen_for_exit)
