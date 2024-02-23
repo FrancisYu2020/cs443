@@ -11,6 +11,8 @@ from utils import *
 
 #TODO: take the screenshot three times with some pause in between and vote which one is the actual current scene
 
+#NOTE: left leg y axis: 373, right leg y axis: 393, left margin: 107, right margin: 10
+
 # Define global variables here
 running = True
 

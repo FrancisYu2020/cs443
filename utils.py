@@ -10,9 +10,22 @@ import time
 
 class Annotator:
     def __init__(self, global_start_timestamp, screenshot_width=None, \
-                 top_margin=803, left_margin=200, right_margin=10, bottom=867, \
-                 interval_length=60, gap_threshold=2, screen_change_threshold=0.01, \
-                 csv_file_path='red_pixels_coordinates.csv') -> None:
+                 top_margin=353, left_margin=107, right_margin=10, bottom=413, \
+                 interval_length=60, gap_threshold=5, screen_change_threshold=0.01, \
+                 csv_file_path='red_pixels_coordinates.csv', roi=(689, 81, 734, 99)) -> None:
+        '''
+        global_start_timestamp: the timestamp where the recordings started to play
+        screenshot_width: the width of the screenshot, will be initialized if set to None
+        top_margin: the top most row index of the leg movement EMG region
+        left_margin: the left most column index of the leg movement EMG region
+        right_margin: the right most column index of the leg movement EMG region
+        bottom: the bottom most row index of the leg movement EMG region
+        interval_length: the recording time span in each frame, default 60 s
+        gap_threshold: TODO finish this comment
+        screen_change_threshold: the ratio of pixels changed to judge if the screen has changed or not
+        csv_file_path: the path to the label file
+        roi: region of interest for the screen changing, (left margin, top margin, right margin, bottom coordinate )
+        '''
         # initialize the object with the preset attributes and parameters
         self.global_start_timestamp = global_start_timestamp
         self.screenshot_width = screenshot_width
@@ -24,6 +37,7 @@ class Annotator:
         self.gap_threshold = gap_threshold
         self.screen_change_threshold = screen_change_threshold
         self.csv_file_path = csv_file_path
+        self.roi = roi
 
         # initialize the screenshot width by taking a screenshot and check if screenshot width is not specified
         if self.screenshot_width is None:
@@ -120,9 +134,11 @@ class Annotator:
         return: boolean value of whether the screen has changed
         '''
         # Calculate the difference
-        diff = cv2.absdiff(prev_screen, new_screen)
+        l, u, r, b = self.roi
+        diff = cv2.absdiff(prev_screen, new_screen)[u : b + 1, l : r + 1, :]
+        # cv2.imwrite('roi.png', new_screen[u : b + 1, l : r + 1, :])
         # Convert difference to a percentage change
-        percent_changed = np.sum(diff) / np.prod(new_screen.shape)
+        percent_changed = np.sum(diff) / np.prod(diff.shape)
         return percent_changed > self.screen_change_threshold
 
     def process_screenshot(self, screenshot, screenshot_idx):
@@ -139,10 +155,19 @@ class Annotator:
         ''' 
         # Find red pixels
         red_pixels = screenshot[self.top_margin : self.bottom, self.left_margin : -self.right_margin, ...]
-
         red_pixels = np.where((red_pixels[:, :, 2] > 200) & (red_pixels[:, :, 1] < 100) & (red_pixels[:, :, 0] < 100))
+        # print(red_pixels)
+        # for i in range(len(red_pixels[0])):
+        #     x, y = red_pixels[1][i], red_pixels[0][i]
+        #     cv2.circle(screenshot, (x, y), 1, (255, 0, 0))
+        # # for i in range(len(red_pixels[0])):
+        # #     x, y = i, i
+        # #     cv2.circle(screenshot, (x, y), 1, (255, 0, 0))
+        # cv2.imwrite('test.png', screenshot)
         coordinates = red_pixels[1] + self.left_margin
-        intervals = self.compress_intervals(coordinates)
+        # print(coordinates)
+        intervals = self.compress_intervals(sorted(coordinates))
+        print(intervals)
 
         # Save to CSV
         df = pd.DataFrame(self.intervals_to_timestamps(intervals, screenshot_idx), columns=['start_h', 'start_min', 'start_s', 'end_h', 'end_min', 'end_s'])
@@ -152,8 +177,7 @@ class Annotator:
         # visualization
         for i in range(len(coordinates)):
             point_position = (coordinates[i], 45 + self.top_margin)
-            if coordinates[i] < self.bottom:
-                cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
+            cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
 
         # Display the modified screenshot
         if not os.path.exists('debug'):
