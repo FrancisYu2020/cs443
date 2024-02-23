@@ -142,8 +142,8 @@ class Annotator:
         '''
         # Calculate the difference
         l, u, r, b = self.roi
-        diff = cv2.absdiff(prev_screen, new_screen)[u : b + 1, l : r + 1, :]
-        # cv2.imwrite('roi.png', new_screen[u : b + 1, l : r + 1, :])
+        diff = cv2.absdiff(prev_screen, new_screen)[u : b + 1, l : r + 1, :] > 0
+
         # Convert difference to a percentage change
         percent_changed = np.sum(diff) / np.prod(diff.shape)
         return percent_changed > self.screen_change_threshold
@@ -177,6 +177,8 @@ class Annotator:
 
         if self.show_debug:
             self.debug_draw(screenshot, self.left_margin, self.top_margin, self.screenshot_width - self.right_margin, self.bottom)
+            # l, u, r, d = self.roi
+            # self.debug_draw(screenshot, l, u, r, d)
 
         # Display the modified screenshot
         if self.snapshots_path:
