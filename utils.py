@@ -9,10 +9,11 @@ import matplotlib.pyplot as plt
 import time
 
 class Annotator:
-    def __init__(self, global_start_timestamp, screenshot_width=None, \
-                 top_margin=353, left_margin=107, right_margin=10, bottom=413, \
+    def __init__(self, global_start_timestamp, start_idx, screenshot_width=None, \
+                 top_margin=370, left_margin=107, right_margin=10, bottom=413, \
                  interval_length=60, gap_threshold=5, screen_change_threshold=0.01, \
-                 csv_file_path='red_pixels_coordinates.csv', roi=(689, 81, 734, 99)) -> None:
+                 csv_file_path='red_pixels_coordinates.csv', roi=(689, 81, 734, 99), \
+                 snapshots_path=None) -> None:
         '''
         global_start_timestamp: the timestamp where the recordings started to play
         screenshot_width: the width of the screenshot, will be initialized if set to None
@@ -25,6 +26,7 @@ class Annotator:
         screen_change_threshold: the ratio of pixels changed to judge if the screen has changed or not
         csv_file_path: the path to the label file
         roi: region of interest for the screen changing, (left margin, top margin, right margin, bottom coordinate )
+        snapshots_dir: path to save snapshots for each frame to check the labeling quality
         '''
         # initialize the object with the preset attributes and parameters
         self.global_start_timestamp = global_start_timestamp
@@ -38,6 +40,8 @@ class Annotator:
         self.screen_change_threshold = screen_change_threshold
         self.csv_file_path = csv_file_path
         self.roi = roi
+        self.snapshots_path = snapshots_path
+        self.start_idx = start_idx
 
         # initialize the screenshot width by taking a screenshot and check if screenshot width is not specified
         if self.screenshot_width is None:
@@ -91,15 +95,16 @@ class Annotator:
 
         return: list of intervals, e.g. [[2, 5], [10, 12]]
         '''
+        # if no red pixels, we directly return empty list
+        if len(arr) == 0:
+            return []
+        arr.sort()
         # Ensure the array is unique and sorted
         arr = np.unique(arr)
         # Find the differences between consecutive elements
         diff = np.diff(arr)
         # Indices where the difference is greater than 1
         split_indices = np.where(diff > self.gap_threshold)[0] + 1
-        # if no intervals, we directly return empty list
-        if len(split_indices) == 0:
-            return []
         # Split the array into sub-arrays where the difference between numbers is more than 1
         sub_arrays = np.split(arr, split_indices)
         # Convert sub-arrays into intervals [min, max]
@@ -115,6 +120,7 @@ class Annotator:
         return: np.ndarray (len(intervals), 6)
         '''
         start_timestamp = self.get_screenshot_start_timestamp(screenshot_idx)
+        print(f'start timestamp for frame {screenshot_idx * (self.interval_length // 30) + self.start_idx} is {start_timestamp}')
         for i in range(len(intervals)):
             start_x, end_x = intervals[i]
             curr_start = self.get_current_timestamp(start_timestamp, start_x)
@@ -156,32 +162,29 @@ class Annotator:
         # Find red pixels
         red_pixels = screenshot[self.top_margin : self.bottom, self.left_margin : -self.right_margin, ...]
         red_pixels = np.where((red_pixels[:, :, 2] > 200) & (red_pixels[:, :, 1] < 100) & (red_pixels[:, :, 0] < 100))
-        # print(red_pixels)
-        # for i in range(len(red_pixels[0])):
-        #     x, y = red_pixels[1][i], red_pixels[0][i]
-        #     cv2.circle(screenshot, (x, y), 1, (255, 0, 0))
-        # # for i in range(len(red_pixels[0])):
-        # #     x, y = i, i
-        # #     cv2.circle(screenshot, (x, y), 1, (255, 0, 0))
-        # cv2.imwrite('test.png', screenshot)
         coordinates = red_pixels[1] + self.left_margin
-        # print(coordinates)
-        intervals = self.compress_intervals(sorted(coordinates))
+        intervals = self.compress_intervals(coordinates)
         print(intervals)
+        # self.debug_draw(screenshot, self.left_margin, self.top_margin, self.screenshot_width - self.right_margin, self.bottom)
+
+        # visualization
+        for start, end in intervals:
+            cv2.line(screenshot, (start, 25 + self.top_margin), (end, 25 + self.top_margin), (255, 0, 0), 2)
 
         # Save to CSV
         df = pd.DataFrame(self.intervals_to_timestamps(intervals, screenshot_idx), columns=['start_h', 'start_min', 'start_s', 'end_h', 'end_min', 'end_s'])
         df.to_csv(self.csv_file_path, mode='a', index=False, header=not os.path.exists(self.csv_file_path))
         # print(f"Screenshot taken and red pixels identified. Data appended to {self.csv_file_path}.")
 
-        # visualization
-        for i in range(len(coordinates)):
-            point_position = (coordinates[i], 45 + self.top_margin)
-            cv2.circle(screenshot, point_position, 3, (255, 0, 0), -1)
-
         # Display the modified screenshot
-        if not os.path.exists('debug'):
-            os.mkdir('debug')
-        cv2.imwrite(f'debug/test_{screenshot_idx}.png', screenshot)
-
+        if self.snapshots_path:
+            if not os.path.exists('debug'):
+                os.mkdir('debug')
+            cv2.imwrite(os.path.join(self.snapshots_path, f'{screenshot_idx}.png'), screenshot)
+    
+    def debug_draw(self, img, l, u, r, d, color=(255, 0, 0), thickness=2):
+        cv2.line(img, (l, u), (l, d), color, thickness)
+        cv2.line(img, (l, u), (r, u), color, thickness)
+        cv2.line(img, (r, u), (r, d), color, thickness)
+        cv2.line(img, (l, d), (r, d), color, thickness)
 

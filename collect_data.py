@@ -8,8 +8,17 @@ import matplotlib.pyplot as plt
 import time
 import threading
 from utils import *
+import argparse
 
-#TODO: take the screenshot three times with some pause in between and vote which one is the actual current scene
+parser = argparse.ArgumentParser(description="EMG data labeling script")
+parser.add_argument('start_frame', type=int, help="The index of the start frame")
+parser.add_argument('start_timestamp', type=str, help="The start timestamp, format hh:mm:ss")
+parser.add_argument('snapshots_path', type=str, help="Path to which the snapshots during the labeling are stored")
+parser.add_argument('--csv', type=str, help="csv file path to store the labeled data, if .csv is not add, it will be automatically processed", default="EMG_label.csv")
+
+args = parser.parse_args()
+
+#TODO: debug the whole pipeline
 
 #NOTE: left leg y axis: 373, right leg y axis: 393, left margin: 107, right margin: 10
 
@@ -24,17 +33,13 @@ def listen_for_exit():
     print('Press "Esc" to exit...')
     keyboard.wait('esc')
     running = False
-    # while running:
-    #     if keyboard.is_pressed('esc'):
-    #         running = False
-    #         break
-    #     time.sleep(0.1)
 
 # Specify the file path for saving the CSV
-csv_file_path = 'red_pixels_coordinates.csv'
-global_start_timestamp = [21, 49, 26]
+global_start_timestamp = args.start_timestamp.split(':')
+global_start_timestamp = [float(x) for x in global_start_timestamp]
+print(global_start_timestamp)
 
-annotator = Annotator(global_start_timestamp)
+annotator = Annotator(global_start_timestamp, args.start_frame, csv_file_path=args.csv, snapshots_path='debug')
 
 # Set up and start the listener thread for early exit
 listener_thread = threading.Thread(target=listen_for_exit)
@@ -45,10 +50,6 @@ prev_screen = cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2BGR)
 epoch_count = 0
 annotator.process_screenshot(prev_screen, epoch_count)
 
-# Main loops
-# total_count = 50000000
-# while total_count:
-#     total_count -= 1
 while running:
 
     # Capture a new screen after some time
