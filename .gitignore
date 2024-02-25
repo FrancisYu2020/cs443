@@ -1,3 +1,9 @@
+data
+Mat
+mix_train
+utils
+*.ipynb
+*.sh
 __pycache__
 test.py
 *.png
