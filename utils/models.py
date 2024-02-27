@@ -21,16 +21,33 @@ class RLSRegressionModel(nn.Module):
         self.conv = nn.Conv2d(window_size, 3, 3, 3, 1)
         torch.nn.init.kaiming_normal_(self.conv.weight, a=0, mode='fan_out')
         self.resnet = models.resnet18(pretrained=pretrained)
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
+        self.classification_head = nn.Sequential(
+            nn.Linear(self.resnet.fc.in_features, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_classes)
+        )
         self.regression_head = nn.Sequential(
-            nn.Linear(self.resnet.fc_in_features, 64),
+            nn.Linear(self.resnet.fc.in_features, 64),
             nn.ReLU(),
             nn.Linear(64, 2)
         )
     
     def forward(self, x):
         x = self.conv(x)
-        return self.resnet(x)
+        
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+
+        x = self.resnet.layer1(x)
+        x = self.resnet.layer2(x)
+        x = self.resnet.layer3(x)
+        x = self.resnet.layer4(x)
+
+        x = self.resnet.avgpool(x)
+        x = torch.flatten(x, 1)
+        return self.classification_head(x), self.regression_head(x)
     
 # ViT based
 # class RLSModel(nn.Module):
