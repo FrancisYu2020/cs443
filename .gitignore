@@ -13,3 +13,4 @@ debug
 snapshots
 .ipynb*
 **/.ipynb*
+wandb

@@ -1,6 +1,6 @@
 import torch
 
-def calculate_iou(gt, pred):
+def calculate_iou(gt, pred, print_input=False):
     """
     Calculate Intersection over Union (IoU) for a single pair of segments
     :param gt: PyTorch tensor of ground truth segments, shape (N, 2)
@@ -12,7 +12,9 @@ def calculate_iou(gt, pred):
         return torch.tensor([]).cuda()
     gt = gt[mask]
     pred = pred[mask]
-    
+    if print_input:
+        print("prediction: ", pred)
+        print("ground truth: ", gt)
     # Calculate intersection
     inter_start = torch.max(gt[:, 0], pred[:, 0])
     inter_end = torch.min(gt[:, 1], pred[:, 1])
