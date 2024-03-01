@@ -33,6 +33,7 @@ parser.add_argument("--cross_val_type", default=0, type=int, help="0 for train a
 parser.add_argument("--task", default="regression", type=str, help="indicate what kind of task to be run (regression/classification, etc.)")
 parser.add_argument("--normalize_roi", default=1, type=int, help="whether normalize the roi indices between [0, 1]")
 parser.add_argument("--alpha", default=0.5, type=float, help="weight of cls loss, default 0.5")
+parser.add_argument("--architecture", default="3d-resnet18", choices=["3d-resnet10", "3d-resnet18", "2d-resnet18", "ViT-tiny"], help="architecture used")
 args = parser.parse_args()
 
 # start a new wandb run to track this script
@@ -47,14 +48,14 @@ wandb.init(
     "learning_rate": args.lr,
     "weight_decay": args.weight_decay,
     "batch_size": args.batch_size,
-    "architecture": args.exp_label,
+    "architecture": args.architecture,
     "cross_val_type": args.cross_val_type,
     "normalize_roi": args.normalize_roi,
     "epochs": args.epochs,
     },
     
     # experiment name
-    name=f"{args.task}_win{args.window_size}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}_cv{args.cross_val_type}_nr{args.normalize_roi}_{args.exp_label}"
+    name=f"{args.task}_win{args.window_size}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}_cv{args.cross_val_type}_nr{args.normalize_roi}_{args.architecture}"
 )
 
 # Set device
@@ -109,13 +110,13 @@ train_transform = get_cnn_transforms(train_data.shape[1])
 val_transform = get_cnn_transforms(train_data.shape[1], train=False)
 
 # create dataset and dataloader
-train_dataset = RLSDataset(train_data, train_label, train_roi_label, transform=train_transform, normalize_roi=args.normalize_roi)
-val_dataset = RLSDataset(val_data, val_label, val_roi_label, transform=val_transform, normalize_roi=args.normalize_roi)
+train_dataset = RLSDataset(args.architecture, train_data, train_label, train_roi_label, transform=train_transform, normalize_roi=args.normalize_roi)
+val_dataset = RLSDataset(args.architecture, val_data, val_label, val_roi_label, transform=val_transform, normalize_roi=args.normalize_roi)
 train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
 
 # Initialize the model
-model = RLSRegressionModel(num_classes, window_size=window_size, pretrained=False)
+model = get_model(args.architecture, num_classes, window_size)
 model.to(device)
 
 # Loss and optimizer
@@ -130,9 +131,10 @@ args.best_epoch = None
 # main train val loop
 for epoch in range(num_epochs):
     args.epoch = epoch
-    train(args, model, train_loader, cls_criterion, regression_criterion, optimizer, scheduler)
-    val(args, model, val_loader, cls_criterion, regression_criterion)
-    
+    train_precision, train_recall, train_f1, train_cls_loss, train_regression_loss, train_miou = train(args, model, train_loader, cls_criterion, regression_criterion, optimizer, scheduler)
+    val_precision, val_recall, val_f1, val_cls_loss, val_regression_loss, val_miou = val(args, model, val_loader, cls_criterion, regression_criterion)
+    wandb.log({"Classification/train/loss": train_cls_loss, "Regression/train/loss": train_regression_loss, "Classification/train/f1": train_f1, "Classification/train/precision": train_precision, "Classification/train/recall": train_recall, "Regression/train/mIoU": train_miou, "Classification/val/loss": val_cls_loss, "Regression/val/loss": val_regression_loss, "Classification/val/f1": val_f1, "Classification/val/precision": val_precision, "Classification/val/recall": val_recall, "Regression/val/mIoU": val_miou})
+
 wandb.finish()
 print(f'The best f1 score is {args.best_f1:.2f} at epoch {args.best_epoch}')
 

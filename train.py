@@ -71,9 +71,8 @@ def train(args, model, train_loader, cls_criterion, regression_criterion, optimi
         optimizer.step()
         scheduler.step()
         
-    # Calculate metrics
-    precision, recall, f1, cls_loss, regression_loss, miou = get_metric_scores(matrix, running_cls_loss, running_regression_loss, running_iou, total_iou_samples)
-    wandb.log({"train_cls_loss": running_cls_loss, "train_reg_loss": running_regression_loss, "train_f1": f1, "train_precision": precision, "train_recall": recall, "train_mIoU": running_iou})
+    # Return calculated metrics
+    return get_metric_scores(matrix, running_cls_loss, running_regression_loss, running_iou, total_iou_samples)
 
         
 def val(args, model, val_loader, cls_criterion, regression_criterion):
@@ -133,8 +132,8 @@ def val(args, model, val_loader, cls_criterion, regression_criterion):
         args.best_f1 = f1
         args.best_epoch = args.epoch + 1
         
-    wandb.log({"val_cls_loss": running_cls_loss, "val_reg_loss": running_regression_loss, "val_f1": f1, "val_precision": precision, "val_recall": recall, "val_mIoU": running_iou})
     print(f'Epoch [{args.epoch+1}/{args.epochs}], CLS Loss: {running_cls_loss:.4f}, regression Loss: {running_regression_loss:4f}, f1: {f1:.2f}, precision: {precision:.2f}, recall: {recall:.2f}, mIoU: {running_iou:.2f}%')
+    return precision, recall, f1, cls_loss, regression_loss, miou
 
 
 def get_metric_scores(confusion_matrix, total_cls_loss, total_regression_loss, total_iou, total_iou_samples, epsilon=0.000001):

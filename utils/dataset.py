@@ -37,7 +37,7 @@ def get_vit_transforms(train=True):
     return transform
 
 class RLSDataset(Dataset):
-    def __init__(self, data, label, roi, transform=None, normalize_roi=False):
+    def __init__(self, architecture_name, data, label, roi, transform=None, normalize_roi=False):
         """
         Args:
             data: (N, C, H, W)
@@ -48,6 +48,7 @@ class RLSDataset(Dataset):
         self.images = data
         self.label = label
         self.roi = roi
+        self.dimension = int(architecture_name[0])
         if normalize_roi:
             self.roi = self.roi * 1.0 / data.shape[1]
 
@@ -59,5 +60,7 @@ class RLSDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
-
-        return image.unsqueeze(0).repeat(3, 1, 1, 1), label, roi
+        if self.dimension == 3:
+            image = image.unsqueeze(0)
+            
+        return image, label, roi

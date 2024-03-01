@@ -3,23 +3,61 @@ import torch
 import torchvision.models as models
 from utils.resnet3d import *
 
+resnet_2d_models = {18: models.resnet18, 34: models.resnet34}
+
+def get_model(architecture_name, num_classes, window_size):
+    if 'resnet' in architecture_name:
+        dimension, architecture = architecture_name.split('-')
+        if dimension[0] == '2':
+            return RLS2DModel(num_classes, int(architecture[-2:]), window_size)
+        else:
+            return RLS3DModel(num_classes, int(architecture[-2:]), window_size)
+    else:
+        raise NotImplementedError("ViT model part not implemented!")
+
 # currently used
-class RLSModel(nn.Module):
-    def __init__(self, num_classes, window_size=16, pretrained=True):
+class RLS2DModel(nn.Module):
+    def __init__(self, num_classes, layer=18, window_size=16):
         super().__init__()
         self.conv = nn.Conv2d(window_size, 3, 3, 3, 1)
         torch.nn.init.kaiming_normal_(self.conv.weight, a=0, mode='fan_out')
-        self.resnet = models.resnet18(pretrained=pretrained)
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
+        self.resnet = resnet_2d_models[layer](pretrained=False)
+        self.classification_head = nn.Sequential(
+            nn.Linear(self.resnet.fc.in_features, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_classes)
+        )
+        self.regression_head = nn.Sequential(
+            nn.Linear(self.resnet.fc.in_features, 64),
+            nn.ReLU(),
+            nn.Linear(64, 2)
+        )
     
     def forward(self, x):
         x = self.conv(x)
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+
+        x = self.resnet.layer1(x)
+        x = self.resnet.layer2(x)
+        x = self.resnet.layer3(x)
+        x = self.resnet.layer4(x)
+
+        x = self.resnet.avgpool(x)
+        x = x.flatten(start_dim=1)
+        
+        return self.classification_head(x), self.regression_head(x)
         return self.resnet(x)
     
-class RLSRegressionModel(nn.Module):
-    def __init__(self, num_classes, window_size=16, pretrained=True):
+class RLS3DModel(nn.Module):
+    def __init__(self, num_classes, layers=18, window_size=16):
         super().__init__()
-        self.resnet = generate_model(10)
+        self.conv0 = nn.Conv3d(1, 3, 1, 1)
+        self.bn0 = nn.BatchNorm3d(3)
+        self.relu = nn.ReLU()
+        self.resnet = generate_model(layers)
         self.classification_head = nn.Sequential(
             nn.Linear(512, 64),
             nn.ReLU(),
@@ -40,27 +78,27 @@ class RLSRegressionModel(nn.Module):
                 nn.init.constant_(m.bias, 0)
     
     def forward(self, x):
+        x = self.conv0(x)
+        x = self.bn0(x)
+        x = self.relu(x)
+        
         x = self.resnet.conv1(x)
-#         print(x.size())
         x = self.resnet.bn1(x)
         x = self.resnet.relu(x)
         if not self.resnet.no_max_pool:
             x = self.resnet.maxpool(x)
 
         x = self.resnet.layer1(x)
-#         print(x.size())
         x = self.resnet.layer2(x)
-#         print(x.size())
         x = self.resnet.layer3(x)
-#         print(x.size())
         x = self.resnet.layer4(x)
 
-#         print(x.size())
         x = self.resnet.avgpool(x)
-
-#         print(x.size())
-        x = x.view(x.size(0), -1)
-
-#         print(x.size())
-#         exit()
+        x = x.flatten(start_dim=1)
+        
         return self.classification_head(x), self.regression_head(x)
+    
+class RLSViTModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        raise NotImplementedError("ViT model for RLS project is not implemented yet!")
