@@ -125,15 +125,28 @@ def val(args, model, val_loader, cls_criterion, regression_criterion):
         matrix[1][1] += (labels[predicted == 1] == 1).sum()
 
     # Calculate metrics
-    precision, recall, f1, cls_loss, regression_loss, miou = get_metric_scores(matrix, running_cls_loss, running_regression_loss, running_iou, total_iou_samples)
+    precision, recall, f1, fprec, cls_loss, regression_loss, miou = get_metric_scores(matrix, running_cls_loss, running_regression_loss, running_iou, total_iou_samples)
     
     if f1 > args.best_f1:
-        # torch.save(model.state_dict(), os.path.join(args.path, 'best_model.ckpt'))
         args.best_f1 = f1
-        args.best_epoch = args.epoch + 1
+        args.best_f1_epoch = args.epoch + 1
+        torch.save(model.state_dict(), os.path.join('checkpoints', args.exp_name + '_best_f1.ckpt'))
+        print('Best F1 model saved!')
+            
+    if fprec > args.best_fprec:
+        args.best_fprec = fprec
+        args.best_fprec_epoch = args.epoch + 1
+        torch.save(model.state_dict(), os.path.join('checkpoints', args.exp_name + '_best_f0.5.ckpt'))
+        print('Best F0.5 model saved!')
+    
+    if miou > args.best_miou:
+        args.best_miou = miou
+        args.best_miou_epoch = args.epoch + 1
+        torch.save(model.state_dict(), os.path.join('checkpoints', args.exp_name + '_best_miou.ckpt'))
+        print('Best miou model saved!')
         
-    print(f'Epoch [{args.epoch+1}/{args.epochs}], CLS Loss: {running_cls_loss:.4f}, regression Loss: {running_regression_loss:4f}, f1: {f1:.2f}, precision: {precision:.2f}, recall: {recall:.2f}, mIoU: {running_iou:.2f}%')
-    return precision, recall, f1, cls_loss, regression_loss, miou
+    print(f'Epoch [{args.epoch+1}/{args.epochs}], CLS Loss: {running_cls_loss:.4f}, regression Loss: {running_regression_loss:4f}, f1: {f1:.2f}, f0.5:{fprec:.2f} precision: {precision:.2f}, recall: {recall:.2f}, mIoU: {running_iou:.2f}%')
+    return precision, recall, f1, fprec, cls_loss, regression_loss, miou
 
 
 def get_metric_scores(confusion_matrix, total_cls_loss, total_regression_loss, total_iou, total_iou_samples, epsilon=0.000001):
@@ -146,7 +159,8 @@ def get_metric_scores(confusion_matrix, total_cls_loss, total_regression_loss, t
     # precision, recall, F1
     precision = TP / (TP + FP + epsilon) * 100
     recall = TP / (TP + FN + epsilon) * 100
-    f1 = 2 * precision * recall / (precision + recall + epsilon)
+    f1 = f_beta_score(1, precision, recall, epsilon)
+    fprec = f_beta_score(0.5, precision, recall, epsilon)
     
     # overall accuracy and class-balanced accuracy (deprecated)
     # overall_accuracy = ((TN + TP) / total_samples) * 100
@@ -160,5 +174,5 @@ def get_metric_scores(confusion_matrix, total_cls_loss, total_regression_loss, t
     # mIoU
     miou = total_iou * 100 / (total_iou_samples + epsilon)
     
-    return precision, recall, f1, cls_loss, regression_loss, miou
+    return precision, recall, f1, fprec, cls_loss, regression_loss, miou
         

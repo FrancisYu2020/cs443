@@ -41,6 +41,14 @@ def calculate_miou(gt, pred):
     miou = iou.mean()
     return miou
 
+def f_beta_score(beta, precision, recall, epsilon):
+    '''
+    Calculate f beta score,
+    :param beta: beta = 1 for f1 score, beta = 0.5 for more weight on precision
+    :param epsilon: smoothing factor
+    '''
+    return (1 + beta**2) * precision * recall / (beta**2 * precision + recall + epsilon)
+    
 # Example usage:
 # gt and pred are PyTorch tensors of shape (N, 2), where N is the number of segments
 # Each row in gt and pred is [start, end] for the segments

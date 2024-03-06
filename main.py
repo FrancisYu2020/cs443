@@ -19,7 +19,6 @@ import wandb
 from train import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--path", default='', help="path to the data and save the model, figures to", type=str)
 parser.add_argument("--lr", default=0.01, help="learning rate used to train the model", type=float)
 parser.add_argument("--weight_decay", default=0.1, help="weight decay used to train the model", type=float)
 parser.add_argument("--epochs", default=300, help="epochs used to train the model", type=int)
@@ -35,6 +34,8 @@ parser.add_argument("--normalize_roi", default=1, type=int, help="whether normal
 parser.add_argument("--alpha", default=0.5, type=float, help="weight of cls loss, default 0.5")
 parser.add_argument("--architecture", default="3d-resnet18", choices=["3d-resnet10", "3d-resnet18", "2d-resnet18", "ViT-tiny"], help="architecture used")
 args = parser.parse_args()
+
+args.exp_name = f"{args.task}_win{args.window_size}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}_cv{args.cross_val_type}_nr{args.normalize_roi}_{args.architecture}"
 
 # start a new wandb run to track this script
 wandb.init(
@@ -55,7 +56,7 @@ wandb.init(
     },
     
     # experiment name
-    name=f"{args.task}_win{args.window_size}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}_cv{args.cross_val_type}_nr{args.normalize_roi}_{args.architecture}"
+    name=args.exp_name
 )
 
 # Set device
@@ -125,17 +126,15 @@ img_num_per_cls = np.unique(train_label, return_counts=True)[1]
 cls_criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=args.weight_decay)
 scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=0)
-args.best_f1 = -np.inf
-args.best_epoch = None
+args.best_f1, args.best_fprec, args.best_miou = -np.inf, -np.inf, -np.inf
+args.best_f1_epoch, args.best_fprec_epoch, args.best_miou_epoch = None, None, None
 
 # main train val loop
 for epoch in range(num_epochs):
     args.epoch = epoch
-    train_precision, train_recall, train_f1, train_cls_loss, train_regression_loss, train_miou = train(args, model, train_loader, cls_criterion, regression_criterion, optimizer, scheduler)
-    val_precision, val_recall, val_f1, val_cls_loss, val_regression_loss, val_miou = val(args, model, val_loader, cls_criterion, regression_criterion)
-    wandb.log({"Classification/train/loss": train_cls_loss, "Regression/train/loss": train_regression_loss, "Classification/train/f1": train_f1, "Classification/train/precision": train_precision, "Classification/train/recall": train_recall, "Regression/train/mIoU": train_miou, "Classification/val/loss": val_cls_loss, "Regression/val/loss": val_regression_loss, "Classification/val/f1": val_f1, "Classification/val/precision": val_precision, "Classification/val/recall": val_recall, "Regression/val/mIoU": val_miou})
+    train_precision, train_recall, train_f1, train_fprec, train_cls_loss, train_regression_loss, train_miou = train(args, model, train_loader, cls_criterion, regression_criterion, optimizer, scheduler)
+    val_precision, val_recall, val_f1, val_fprec, val_cls_loss, val_regression_loss, val_miou = val(args, model, val_loader, cls_criterion, regression_criterion)
+    wandb.log({"Classification/train/loss": train_cls_loss, "Regression/train/loss": train_regression_loss, "Classification/train/f1": train_f1, "Classification/train/f0.5": train_fprec, "Classification/train/precision": train_precision, "Classification/train/recall": train_recall, "Regression/train/mIoU": train_miou, "Classification/val/loss": val_cls_loss, "Regression/val/loss": val_regression_loss, "Classification/val/f1": val_f1, "Classification/val/f0.5": val_fprec, "Classification/val/precision": val_precision, "Classification/val/recall": val_recall, "Regression/val/mIoU": val_miou})
 
 wandb.finish()
-print(f'The best f1 score is {args.best_f1:.2f} at epoch {args.best_epoch}')
-
-#TODO: check wandb log to see if it is expected, debug the transforms, the normalize transform seems not to do expected thing
+print(f'The best f1 score is {args.best_f1:.2f} at epoch {args.best_f1_epoch}; The best f0.5 score is {args.best_fprec:.2f} at epoch {args.best_fprec_epoch}; The best mIoU score is {args.best_miou:.2f} at epoch {args.best_miou_epoch}')

@@ -2,11 +2,15 @@ import torch.nn as nn
 import torch
 import torchvision.models as models
 from utils.resnet3d import *
+import os
 
 # 10: is just a placeholder for class inheritence
 resnet_2d_models = {10: models.resnet18, 18: models.resnet18, 34: models.resnet34}
 
 def get_model(architecture_name, num_classes, window_size):
+    '''
+    create new model to train
+    '''
     if 'resnet' in architecture_name:
         dimension, architecture = architecture_name.split('-')
         if dimension[0] == '2':
@@ -15,6 +19,16 @@ def get_model(architecture_name, num_classes, window_size):
             return RLS3DModel(num_classes, int(architecture[-2:]), window_size=window_size)
     else:
         raise NotImplementedError("ViT model part not implemented!")
+
+def load_model(exp_name, num_classes, window_size):
+    '''
+    load existing model to evaluate
+    exp_name: the experiment name of the model
+    '''
+    architecture_name = exp_name.split('_')[-3]
+    model = get_model(architecture_name, num_classes, window_size)
+    model.load_state_dict(torch.load(os.path.join('checkpoints', exp_name)))
+    return model
 
 # currently used
 class RLS2DModel(nn.Module):
@@ -65,7 +79,11 @@ class RLS2DModel(nn.Module):
 class RLS3DModel(RLS2DModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.conv = nn.Conv3d(1, 3, 1, 1)
+        self.conv = nn.Sequential(
+            nn.Conv3d(1, 3, 7, 1, 3),
+#             nn.BatchNorm3d(3),
+#             nn.ReLU()
+        )
         self.resnet = generate_model(self.layers)
         self._init_modules()
     
