@@ -3,25 +3,27 @@ import torch
 import torchvision.models as models
 from utils.resnet3d import *
 
-resnet_2d_models = {18: models.resnet18, 34: models.resnet34}
+# 10: is just a placeholder for class inheritence
+resnet_2d_models = {10: models.resnet18, 18: models.resnet18, 34: models.resnet34}
 
 def get_model(architecture_name, num_classes, window_size):
     if 'resnet' in architecture_name:
         dimension, architecture = architecture_name.split('-')
         if dimension[0] == '2':
-            return RLS2DModel(num_classes, int(architecture[-2:]), window_size)
+            return RLS2DModel(num_classes, int(architecture[-2:]), window_size=window_size)
         else:
-            return RLS3DModel(num_classes, int(architecture[-2:]), window_size)
+            return RLS3DModel(num_classes, int(architecture[-2:]), window_size=window_size)
     else:
         raise NotImplementedError("ViT model part not implemented!")
 
 # currently used
 class RLS2DModel(nn.Module):
-    def __init__(self, num_classes, layer=18, window_size=16):
+    def __init__(self, num_classes, layers=18, window_size=16):
         super().__init__()
+        self.layers = layers
         self.conv = nn.Conv2d(window_size, 3, 3, 3, 1)
         torch.nn.init.kaiming_normal_(self.conv.weight, a=0, mode='fan_out')
-        self.resnet = resnet_2d_models[layer](pretrained=False)
+        self.resnet = resnet_2d_models[layers](pretrained=False)
         self.classification_head = nn.Sequential(
             nn.Linear(self.resnet.fc.in_features, 64),
             nn.ReLU(),
@@ -32,7 +34,17 @@ class RLS2DModel(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 2)
         )
+        self._init_modules()
     
+    def _init_modules(self):
+        # initialize conv blocks
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Conv3d)):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, (nn.BatchNorm2d, nn.BatchNorm3d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+                    
     def forward(self, x):
         x = self.conv(x)
         x = self.resnet.conv1(x)
@@ -49,54 +61,13 @@ class RLS2DModel(nn.Module):
         x = x.flatten(start_dim=1)
         
         return self.classification_head(x), self.regression_head(x)
-        return self.resnet(x)
     
-class RLS3DModel(nn.Module):
-    def __init__(self, num_classes, layers=18, window_size=16):
-        super().__init__()
-        self.conv0 = nn.Conv3d(1, 3, 1, 1)
-        self.bn0 = nn.BatchNorm3d(3)
-        self.relu = nn.ReLU()
-        self.resnet = generate_model(layers)
-        self.classification_head = nn.Sequential(
-            nn.Linear(512, 64),
-            nn.ReLU(),
-            nn.Linear(64, num_classes)
-        )
-        self.regression_head = nn.Sequential(
-            nn.Linear(512, 64),
-            nn.ReLU(),
-            nn.Linear(64, 2)
-        )
-        
-        # initialize conv blocks
-        for m in self.modules():
-            if isinstance(m, nn.Conv3d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-            elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-    
-    def forward(self, x):
-        x = self.conv0(x)
-        x = self.bn0(x)
-        x = self.relu(x)
-        
-        x = self.resnet.conv1(x)
-        x = self.resnet.bn1(x)
-        x = self.resnet.relu(x)
-        if not self.resnet.no_max_pool:
-            x = self.resnet.maxpool(x)
-
-        x = self.resnet.layer1(x)
-        x = self.resnet.layer2(x)
-        x = self.resnet.layer3(x)
-        x = self.resnet.layer4(x)
-
-        x = self.resnet.avgpool(x)
-        x = x.flatten(start_dim=1)
-        
-        return self.classification_head(x), self.regression_head(x)
+class RLS3DModel(RLS2DModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conv = nn.Conv3d(1, 3, 1, 1)
+        self.resnet = generate_model(self.layers)
+        self._init_modules()
     
 class RLSViTModel(nn.Module):
     def __init__(self):
