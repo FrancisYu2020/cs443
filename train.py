@@ -130,19 +130,19 @@ def val(args, model, val_loader, cls_criterion, regression_criterion):
     if f1 > args.best_f1:
         args.best_f1 = f1
         args.best_f1_epoch = args.epoch + 1
-        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, args.exp_name + '_best_f1.ckpt'))
+        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, 'best_f1.ckpt'))
         print('Best F1 model saved!')
             
     if fprec > args.best_fprec:
         args.best_fprec = fprec
         args.best_fprec_epoch = args.epoch + 1
-        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, args.exp_name + '_best_f0.5.ckpt'))
+        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, 'best_f0.5.ckpt'))
         print('Best F0.5 model saved!')
     
     if miou > args.best_miou:
         args.best_miou = miou
         args.best_miou_epoch = args.epoch + 1
-        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, args.exp_name + '_best_miou.ckpt'))
+        torch.save({'state_dict':model.state_dict(), 'precision':precision, 'recall':recall, 'f1':f1, 'f0.5':fprec, 'cls_loss':cls_loss, 'regression_loss':regression_loss, 'miou':miou}, os.path.join(args.checkpoint_dir, 'best_miou.ckpt'))
         print('Best miou model saved!')
         
     print(f'Epoch [{args.epoch+1}/{args.epochs}], CLS Loss: {running_cls_loss:.4f}, regression Loss: {running_regression_loss:4f}, f1: {f1:.2f}, f(0.5):{fprec:.2f} precision: {precision:.2f}, recall: {recall:.2f}, mIoU: {running_iou:.2f}%')

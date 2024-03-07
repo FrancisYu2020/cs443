@@ -33,7 +33,7 @@ parser.add_argument("--task", default="regression", type=str, help="indicate wha
 parser.add_argument("--normalize_roi", default=1, type=int, help="whether normalize the roi indices between [0, 1]")
 parser.add_argument("--alpha", default=0.5, type=float, help="weight of cls loss, default 0.5")
 parser.add_argument("--architecture", default="3d-resnet18", choices=["3d-resnet10", "3d-resnet18", "2d-resnet18", "ViT-tiny"], help="architecture used")
-parser.add_argument("--exp_id", default=0, type=int, help="the id of the experiment")
+parser.add_argument("--exp_id", default=0, type=str, help="the id of the experiment")
 args = parser.parse_args()
 
 args.exp_name = f"{args.task}_win{args.window_size}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}_alpha{args.alpha}_cv{args.cross_val_type}_nr{args.normalize_roi}_{args.architecture}"
@@ -42,7 +42,7 @@ if not os.path.exists(args.checkpoint_root):
     os.mkdir(args.checkpoint_root)
     
 args.exp_name += f'_{args.exp_id}'
-args.checkpoint_dir = os.path.join(args.checkpoint_root, args.exp_name)
+args.checkpoint_dir = os.path.join(args.checkpoint_root, args.exp_id)
 if not os.path.exists(args.checkpoint_dir):
     os.mkdir(args.checkpoint_dir)
 
