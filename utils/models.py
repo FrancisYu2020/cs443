@@ -25,9 +25,9 @@ def load_model(exp_name, num_classes, window_size):
     load existing model to evaluate
     exp_name: the experiment name of the model
     '''
-    architecture_name = exp_name.split('_')[-3]
+    architecture_name = exp_name.split('_')[-4]
     model = get_model(architecture_name, num_classes, window_size)
-    model.load_state_dict(torch.load(os.path.join('checkpoints', exp_name)))
+    model.load_state_dict(torch.load(os.path.join('checkpoint', exp_name)))
     return model
 
 # currently used
