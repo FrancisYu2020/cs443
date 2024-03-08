@@ -60,7 +60,7 @@ class DQN(nn.Module):
         self.conv1 = ConvBlock(4, 16, 8, 4)
         self.conv2 = ConvBlock(16, 32, 4, 2)
         self.fc = nn.Sequential(
-            nn.Linear(, 256),
+            nn.Linear(81, 256),
             nn.ReLU()
         )
         self.output = nn.Linear(256, action_space)
@@ -70,3 +70,13 @@ class DQN(nn.Module):
         x = self.conv2(x)
         x = self.fc(x)
         return self.output(x)
+
+    def epsilon_greedy(self, epsilon, action_space):
+        '''
+        With probability epsilon select a random action a_t, otherwise select at = max_{a} Q^*(phi(s_t), a; theta)
+        '''
+        assert 0 <= epsilon <= 1, "epsilon must be a real value in [0, 1]"
+        if torch.rand(1) <= epsilon:
+            return torch.randint(0, action_space)
+        else:
+            return torch.argmax(self.forward())

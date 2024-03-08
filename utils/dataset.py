@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+import torch
 
 '''
 Working directly with raw Atari frames, which are 210 × 160 pixel images with a 128 color palette,
@@ -13,19 +14,23 @@ expects square inputs. For the experiments in this paper, the function φ from a
 preprocessing to the last 4 frames of a history and stacks them to produce the input to the Q-function.
 '''
 
-def get_cnn_transforms(window_size, train=True):
+def get_cnn_transforms(downsize=(110, 84), crop_size=(84, 84), train=True):
     # cnn transformation
     if train:
         transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1)
-            # transforms.RandomRotation(degrees=(-180, 180)),
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize(size=downsize),
+            transforms.RandomCrop(size=crop_size),
             transforms.ToTensor(),
-#             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize(size=downsize),
+            transforms.CenterCrop(size=crop_size),
             transforms.ToTensor(),
-#             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
     return transform
 
@@ -38,15 +43,12 @@ class ReplayBuffer(Dataset):
         """
         self.quadruples = quadruples
         self.transform = transform
-        self.frame_per_state = frame_per_state
         
     def __len__(self):
         return len(self.quadruples)
 
     def __getitem__(self, idx):
         s, a, r, s_next = self.quadruples[idx]
-        s = torch.cat([self.transform(frame) for frame in state], dim=0)
-        s_next = torch.cat([self.transform(frame) for frame in state_next], dim=0)
-        
-            
-        return image, label, roi
+        s = torch.cat([self.transform(frame) for frame in s], dim=0)
+        s_next = torch.cat([self.transform(frame) for frame in s_next], dim=0)
+        return s, a, r, s_next

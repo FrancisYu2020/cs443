@@ -11,10 +11,11 @@ from sklearn.metrics import confusion_matrix
 from utils.class_balanced_loss import CB_loss
 import timm
 from tqdm import tqdm
-from utils.models import *
-from utils.dataset import *
-from utils.metrics import *
-from utils.lossfunc import *
+# from utils.models import *
+# from utils.dataset import *
+# from utils.metrics import *
+# from utils.lossfunc import *
+import utils
 import wandb
 from train import *
 
@@ -85,6 +86,32 @@ learning_rate = args.lr
 args.window_size = 'win' + str(args.window_size) + '_'
 if args.long_tailed:
     args.window_size += 'LT_'
+
+'''
+Algorithm 1 Deep Q-learning with Experience Replay
+Initialize replay memory D to capacity N
+Initialize action-value function Q with random weights
+for episode = 1, M do
+Initialise sequence s1 = {x1} and preprocessed sequenced φ1 = φ(s1)
+for t = 1, T do
+With probability epsilon select a random action at
+otherwise select at = maxa Q^*(φ(st), a; θ)
+Execute action at in emulator and observe reward rt and image xt+1
+Set st+1 = st, at, xt+1 and preprocess φt+1 = φ(st+1)
+Store transition (φt, at, rt, φt+1) in D
+Sample random minibatch of transitions (φj , aj , rj , φj+1) from D
+Set yj = rj for terminal φj+1; rj + γ maxa0 Q(φj+1, a0
+; θ) for non-terminal φj+1
+Perform a gradient descent step on (yj − Q(φj , aj ; θ))2
+according to equation 3
+end for
+end for
+'''
+replay_memory = []
+Q_net = utils.models.DQN(args.action_space).to(device)
+for episode in range(args.total_episodes):
+    for t in range(args.T):
+        a = Q_net.epsilon_greedy(args.epsilon, args.action_space)
 
 data_paths = ['data/12-13-2023', 'data/02-15-2024', 'data/02-17-2024']
 if args.cross_val_type == 0:
