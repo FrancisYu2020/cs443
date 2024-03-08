@@ -2,65 +2,51 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+'''
+Working directly with raw Atari frames, which are 210 × 160 pixel images with a 128 color palette,
+can be computationally demanding, so we apply a basic preprocessing step aimed at reducing the
+input dimensionality. The raw frames are preprocessed by first converting their RGB representation
+to gray-scale and down-sampling it to a 110×84 image. The final input representation is obtained by
+cropping an 84 × 84 region of the image that roughly captures the playing area. The final cropping
+stage is only required because we use the GPU implementation of 2D convolutions from [11], which
+expects square inputs. For the experiments in this paper, the function φ from algorithm 1 applies this
+preprocessing to the last 4 frames of a history and stacks them to produce the input to the Q-function.
+'''
+
 def get_cnn_transforms(window_size, train=True):
     # cnn transformation
     if train:
         transform = transforms.Compose([
-            transforms.ToTensor(),
+            transforms.Grayscale(num_output_channels=1)
             # transforms.RandomRotation(degrees=(-180, 180)),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            transforms.Normalize([0.47] * window_size, [0.2] * window_size),
+            transforms.ToTensor(),
+#             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform = transforms.Compose([
             transforms.ToTensor(),
 #             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            transforms.Normalize([0.47] * window_size, [0.2] * window_size),
         ])
     return transform
 
-def get_vit_transforms(train=True):
-    # ViT transformation
-    if train:
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-    else:
-        transform = transforms.Compose([
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-    return transform
-
-class RLSDataset(Dataset):
-    def __init__(self, architecture_name, data, label, roi, transform=None, normalize_roi=False):
+class ReplayBuffer(Dataset):
+    def __init__(self, quadruples, transform):
         """
         Args:
-            data: (N, C, H, W)
-            label: 0 or 1 indicating whether this is a positive region or not
+            quadruples: list of (s, a, r, s')
             transform (callable, optional): Optional transform to be applied on a sample.
         """
+        self.quadruples = quadruples
         self.transform = transform
-        self.images = data
-        self.label = label
-        self.roi = roi
-        self.dimension = int(architecture_name[0])
-        if normalize_roi:
-            self.roi = self.roi * 1.0 / data.shape[1]
-
+        self.frame_per_state = frame_per_state
+        
     def __len__(self):
-        return len(self.images)
+        return len(self.quadruples)
 
     def __getitem__(self, idx):
-        image, label, roi = self.images[idx].T, self.label[idx], self.roi[idx]
-
-        if self.transform:
-            image = self.transform(image)
-        if self.dimension == 3:
-            image = image.unsqueeze(0)
+        s, a, r, s_next = self.quadruples[idx]
+        s = torch.cat([self.transform(frame) for frame in state], dim=0)
+        s_next = torch.cat([self.transform(frame) for frame in state_next], dim=0)
+        
             
         return image, label, roi

@@ -30,64 +30,43 @@ def load_model(checkpoint_path, num_classes, window_size):
     model.load_state_dict(torch.load(checkpoint_path)['state_dict'])
     return model
 
-# currently used
-class RLS2DModel(nn.Module):
-    def __init__(self, num_classes, layers=18, window_size=16):
-        super().__init__()
-        self.layers = layers
-        self.conv = nn.Conv2d(window_size, 3, 3, 3, 1)
-        torch.nn.init.kaiming_normal_(self.conv.weight, a=0, mode='fan_out')
-        self.resnet = resnet_2d_models[layers](pretrained=False)
-        self.classification_head = nn.Sequential(
-            nn.Linear(self.resnet.fc.in_features, 64),
-            nn.ReLU(),
-            nn.Linear(64, num_classes)
+'''
+Architecture part of the DQN paper: 
+
+The input to the neural network consists is an 84 × 84 × 4 image produced by φ. 
+
+The first hidden layer convolves 16 8 × 8 filters with stride 4 with the input image and applies a rectifier nonlinearity. 
+
+The second hidden layer convolves 32 4 × 4 filters with stride 2, again followed by a rectifier nonlinearity.
+
+The final hidden layer is fully-connected and consists of 256 rectifier units. 
+
+The output layer is a fully-connected linear layer with a single output for each valid action.
+'''
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding=0):
+        self.model = nn.Sequential(
+            nn.Conv2d(4, 16, 8, 4),
+            nn.ReLU()
         )
-        self.regression_head = nn.Sequential(
-            nn.Linear(self.resnet.fc.in_features, 64),
-            nn.ReLU(),
-            nn.Linear(64, 2)
-        )
-        self._init_modules()
     
-    def _init_modules(self):
-        # initialize conv blocks
-        for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.Conv3d)):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-            elif isinstance(m, (nn.BatchNorm2d, nn.BatchNorm3d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+    def forward(self, x):
+        return self.model(x)
+    
+class DQN(nn.Module):
+    def __init__(self, action_space):
+        super().__init__()
+        self.conv1 = ConvBlock(4, 16, 8, 4)
+        self.conv2 = ConvBlock(16, 32, 4, 2)
+        self.fc = nn.Sequential(
+            nn.Linear(, 256),
+            nn.ReLU()
+        )
+        self.output = nn.Linear(256, action_space)
                     
     def forward(self, x):
-        x = self.conv(x)
-        x = self.resnet.conv1(x)
-        x = self.resnet.bn1(x)
-        x = self.resnet.relu(x)
-        x = self.resnet.maxpool(x)
-
-        x = self.resnet.layer1(x)
-        x = self.resnet.layer2(x)
-        x = self.resnet.layer3(x)
-        x = self.resnet.layer4(x)
-
-        x = self.resnet.avgpool(x)
-        x = x.flatten(start_dim=1)
-        
-        return self.classification_head(x), self.regression_head(x)
-    
-class RLS3DModel(RLS2DModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.conv = nn.Sequential(
-            nn.Conv3d(1, 3, 7, 1, 3),
-#             nn.BatchNorm3d(3),
-#             nn.ReLU()
-        )
-        self.resnet = generate_model(self.layers)
-        self._init_modules()
-    
-class RLSViTModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        raise NotImplementedError("ViT model for RLS project is not implemented yet!")
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.fc(x)
+        return self.output(x)
