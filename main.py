@@ -25,10 +25,10 @@ parser.add_argument("--gamma", default=0.99, type=float, help="discount factor g
 parser.add_argument("--exp_id", default='debug', type=str, help="the id of the experiment")
 parser.add_argument("--max_epsilon", default=1, type=float, help="the beginning epsilon (max epsilon)")
 parser.add_argument("--min_epsilon", default=0.1, type=float, help="the final epsilon after decay during training (min epsilon)")
-parser.add_argument("--epsilon_decay_frames", default=100, type=int, help="the final epsilon (min epsilon)")
-parser.add_argument("--buffer_size", default=100, type=int, help="buffer size (number of frames)")
-parser.add_argument("--training_frames", default=1000, type=int, help="number of frames for training")
-parser.add_argument("--episode_length", default=20, type=int, help="number of frames for training")
+parser.add_argument("--epsilon_decay_frames", default=10000, type=int, help="the final epsilon (min epsilon)")
+parser.add_argument("--buffer_size", default=10000, type=int, help="buffer size (number of frames)")
+parser.add_argument("--training_frames", default=100000, type=int, help="number of frames for training")
+parser.add_argument("--episode_length", default=200, type=int, help="number of frames for training")
 parser.add_argument("--atari_game", default='PongNoFrameskip-v4', \
                     choices=['PongNoFrameskip-v4','BreakoutNoFrameskip-v4',\
                              'SpaceInvadersNoFrameskip-v4','MsPacmanNoFrameskip-v4',\
@@ -42,7 +42,7 @@ else:
     args.frames_per_state = 4
 
 args.epsilon_decay_steps = args.epsilon_decay_frames // args.frames_per_state
-args.buffer_size /= args.frames_per_state
+args.buffer_size //= args.frames_per_state
 args.training_steps = args.training_frames // args.frames_per_state
 
 args.exp_name = f"{args.atari_game}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}"
@@ -101,7 +101,6 @@ optimizer = optim.RMSprop(Q_net.parameters(), lr=0.01, alpha=0.99, eps=1e-08, we
 
 step = 0 # current step number
 episode_id = 0
-episode_rewards = []
 total_reward = 0
 # print(env.reset().dtype)
 
@@ -118,24 +117,24 @@ while step < args.training_steps:
     # collect the trajectory for T timestamps or until terminal state
     for t in range(args.episode_length):
         # With probability epsilon select a random action a_t otherwise select at = max_{a} Q^*(φ(s_t), a; θ)
-        action = target_net.epsilon_greedy(phi, utils.get_epsilon(args, step), args.action_space)
+        action = target_net.epsilon_greedy(phi.unsqueeze(0), utils.get_epsilon(args, step), args.action_space).to(device)
         
-        phi_next, reward, done = [], 0, 0
+        phi_next, reward, done = [], torch.tensor(0.).to(device), 0
         # Execute action at in emulator and observe reward r_t and image x_{t+1}
         for _ in range(args.frames_per_state):
             next_frame, curr_reward, curr_done, _ = env.step(action)
             phi_next.append(phi_transforms(Image.fromarray(next_frame)))
-            reward += curr_reward
+            reward += utils.normalize_reward(curr_reward)
             done |= curr_done
          
         # Set s_{t+1} = s_t, a_t, x_{t+1} and preprocess φ_{t+1} = φ(s_{t+1})
         phi_next = torch.vstack(phi_next).to(device)
 
+        episode_reward += reward
+
         # Set y_j = r_j for terminal φ_{j+1}; rj + γ max_{a_0} Q(φ_{j+1}, a_0; θ) for non-terminal φ_{j+1}
         if not done:
             reward += args.gamma * Q_net(phi_next.unsqueeze(0)).max().clone().detach() # need to detach from the computation graph
-        
-        episode_reward += reward
         
         # Store transition (φt, at, rt, φt+1) in D
         replay_buffer.add((phi, action, reward, phi_next))
@@ -143,7 +142,7 @@ while step < args.training_steps:
         # Sample random minibatch of transitions (φj , aj , rj , φj+1) from D
         if not dataloader:
             dataloader = DataLoader(replay_buffer, batch_size=args.batch_size, shuffle=True)
-            
+        
         for s, a, r, s_next in dataloader:
             Q_pred = torch.gather(Q_net(s), 1, a.to(device).unsqueeze(1)).squeeze(1)
             loss = F.mse_loss(Q_pred, r)
@@ -153,11 +152,17 @@ while step < args.training_steps:
             optimizer.step()
             break
         
+        if done:
+            break
+        
         step += 1
-    episode_rewards.append(episode_reward)
-    print(f'After {len(episode_rewards)} episodes, the average reward is {sum(episode_rewards) / len(episode_rewards)}')
+        
+    total_reward += episode_reward
+    average_reward = total_reward / episode_id
+    wandb.log({'episode reward': episode_reward, 'average reward': average_reward})
+    print(f'In episode {episode_id}, episode reward: {episode_reward:.2f}, average reward: {average_reward:.2f}')
     
-    target_net = Q_net.copy()
+    target_net = copy(Q_net)
 
 env.close()
 

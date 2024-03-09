@@ -82,6 +82,6 @@ class DQN(nn.Module):
         '''
         assert 0 <= epsilon <= 1, "epsilon must be a real value in [0, 1]"
         if torch.rand(1) <= epsilon:
-            return action_space.sample()
+            return torch.tensor(action_space.sample())
         else:
             return torch.argmax(self.forward(phi))

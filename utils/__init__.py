@@ -1,2 +1,10 @@
 def get_epsilon(args, curr_step):
     return max(args.max_epsilon - (args.max_epsilon - args.min_epsilon) / args.epsilon_decay_steps * curr_step, args.min_epsilon)
+
+def normalize_reward(reward):
+    if reward > 0:
+        return 1
+    elif reward == 0:
+        return 0
+    else:
+        return -1
