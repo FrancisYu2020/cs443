@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch
 import torchvision.models as models
-from utils.resnet3d import *
 import os
 
 # 10: is just a placeholder for class inheritence
@@ -43,8 +42,9 @@ The output layer is a fully-connected linear layer with a single output for each
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding=0):
+        super().__init__()
         self.model = nn.Sequential(
-            nn.Conv2d(4, 16, 8, 4),
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
             nn.ReLU()
         )
     
@@ -57,14 +57,18 @@ class DQN(nn.Module):
         self.conv1 = ConvBlock(4, 16, 8, 4)
         self.conv2 = ConvBlock(16, 32, 4, 2)
         self.fc = nn.Sequential(
-            nn.Linear(81, 256),
+            nn.Linear(2592, 256), # (N, 32, 9, 9)
             nn.ReLU()
         )
         self.output = nn.Linear(256, action_space)
                     
     def forward(self, x):
         x = self.conv1(x)
+#         print(x.size())
         x = self.conv2(x)
+#         print(x.size())
+        x = x.flatten(start_dim=1)
+#         print(x.size())
         x = self.fc(x)
         return self.output(x)
 

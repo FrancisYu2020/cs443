@@ -1,57 +1,86 @@
-# import numpy as np
+# # import gym
+# # import torch
 
-# def sliding_window_view(arr, window_size, stride):
-#     """
-#     Create a view of `arr` with a sliding window of size `window_size` moved by `stride`.
+# # # Create the environment
+# # # env = gym.make('Pong')  # 'Deterministic' version for consistent results
+# # env = gym.make('BreakoutDeterministic-v4')  # 'Deterministic' version for consistent results
+
+# # # Initialize the environment
+# # state = env.reset()
+
+# # # Display the initial game state
+# # # env.render()
+
+# # # Loop for a few steps
+# # for _ in range(10000):
+# #     # Take a random action
+# #     action = torch.tensor(1)  # Replace this with your action selection mechanism
     
-#     Parameters:
-#     - arr: numpy array of 1 dimension.
-#     - window_size: size of the sliding window.
-#     - stride: step size between windows.
+# #     # Perform the action and get the new state, reward, done (whether the game is over), and info
+# #     next_state, reward, done, info = env.step(action)
+# # #     print(action, type(action))
     
-#     Returns:
-#     - A 2D numpy array where each row is a window.
-#     """
-#     n = arr.shape[0]
-#     num_windows = (n - window_size) // stride + 1
-#     indices = np.arange(window_size)[None, :] + stride * np.arange(num_windows)[:, None]
-#     return arr[indices]
+# #     # Display the game state
+# # #     env.render()
+    
+# #     if done:
+# #         state = env.reset()
 
-# # Example usage
-# arr = np.arange(100)  # A sample numpy array
-# window_size = 4  # Length of the window
-# stride = 2  # Step size
+# # # Close the environment
+# # env.close()
 
-# # Apply the sliding window view function
-# result = sliding_window_view(arr, window_size, stride)
+# from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
+# from stable_baselines3.common.env_util import make_vec_env
+# import gym
 
-# print(result)
+# # Specify the environment ID
+# # env_id = "CartPole-v1"
+# env_id = 'BreakoutDeterministic-v4'
+
+# # Number of environments to run in parallel
+# num_envs = 4
+
+# # Create vectorized environments
+# # This will automatically create `num_envs` copies of the environment
+# # and allow you to step them in parallel
+# vec_env = make_vec_env(env_id, n_envs=num_envs)
+
+# # To stack frames if required, e.g., for Atari games
+# # vec_env = VecFrameStack(vec_env, n_stack=4)
+
+# # Example of interacting with the vectorized environment
+# obs = vec_env.reset()
+# for _ in range(25000):
+#     actions = [vec_env.action_space.sample() for _ in range(num_envs)]  # Sample random actions
+#     obs, rewards, dones, infos = vec_env.step(actions)
+#     # Process the observations, rewards, dones, infos if needed
+#     # If any environments are done, you might want to reset them in some cases
+
+# # Close the environments
+# vec_env.close()
+
 import gym
-import torch
 
 # Create the environment
-env = gym.make('BreakoutDeterministic-v4')  # 'Deterministic' version for consistent results
+env = gym.make('PongDeterministic-v4')
 
-# Initialize the environment
+# Reset the environment to start a new episode
 state = env.reset()
 
-# Display the initial game state
+# Render the initial state (optional, for visualization purposes)
 # env.render()
 
-# Loop for a few steps
-for _ in range(10000):
+done = False
+while not done:
     # Take a random action
-    action = torch.tensor(1)  # Replace this with your action selection mechanism
+    action = env.action_space.sample()
     
-    # Perform the action and get the new state, reward, done (whether the game is over), and info
+    # Execute the action
     next_state, reward, done, info = env.step(action)
-    print(action, type(action))
+    print(next_state.shape)
     
-    # Display the game state
+    # Optionally render the game screen after taking the action
 #     env.render()
-    
-    if done:
-        break
 
-# Close the environment
+# Close the environment when done
 env.close()

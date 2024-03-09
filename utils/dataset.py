@@ -45,8 +45,7 @@ class ReplayBuffer(Dataset):
         self.curr_idx += 1
         
     def __len__(self):
-        return len(self.quadruples) - self.start_idx
+        return len(self.quadruples)
 
     def __getitem__(self, idx):
-        idx += self.start_idx
         return self.quadruples[idx]
