@@ -18,13 +18,13 @@ parser.add_argument("--weight_decay", default=0.1, help="weight decay used to tr
 parser.add_argument("--epochs", default=300, help="epochs used to train the model", type=int)
 parser.add_argument("--batch_size", default=32, help="batch size used to train the model", type=int)
 parser.add_argument("--alpha", default=0.5, type=float, help="weight of cls loss, default 0.5")
-parser.add_argument("--exp_id", default=0, type=str, help="the id of the experiment")
+parser.add_argument("--exp_id", default='debug', type=str, help="the id of the experiment")
 parser.add_argument("--max_epsilon", default=1, type=float, help="the beginning epsilon (max epsilon)")
 parser.add_argument("--min_epsilon", default=0.1, type=float, help="the final epsilon after decay during training (min epsilon)")
-parser.add_argument("--epsilon_decay_frames", default=1000000, type=int, help="the final epsilon (min epsilon)")
-parser.add_argument("--buffer_size", default=1000000, type=int, help="buffer size (number of frames)")
-parser.add_argument("--training_frames", default=10000000, type=int, help="number of frames for training")
-parser.add_argument("--atari_game", default='Pong', games = ['BeamRider','Breakout','Enduro','Pong','Qbert','Seaquest','SpaceInvaders'],\
+parser.add_argument("--epsilon_decay_frames", default=100, type=int, help="the final epsilon (min epsilon)")
+parser.add_argument("--buffer_size", default=100, type=int, help="buffer size (number of frames)")
+parser.add_argument("--training_frames", default=1000, type=int, help="number of frames for training")
+parser.add_argument("--atari_game", default='Pong', choices = ['BeamRider','Breakout','Enduro','Pong','Qbert','Seaquest','SpaceInvaders'],\
                      help="name of the atari game environment")
 args = parser.parse_args()
 
@@ -54,8 +54,7 @@ wandb.init(
     
     # track hyperparameters and run metadata
     config={
-    "task": args.task,
-    "window_size": args.window_size,
+    "game": args.atari_game,
     "learning_rate": args.lr,
     "weight_decay": args.weight_decay,
     "batch_size": args.batch_size,
@@ -143,6 +142,8 @@ while step < args.training_steps:
             break
         
         step += 1
+    episode_rewards.append(episode_reward)
+    print(f'After {len(episode_rewards)} episodes, the average reward is {sum(episode_rewards) / len(episode_rewards)}')
     
     target_net = Q_net.copy()
 
