@@ -71,12 +71,16 @@ class DQN(nn.Module):
         x = self.fc(x)
         return self.output(x)
 
-    def epsilon_greedy(self, epsilon, action_space):
+    def epsilon_greedy(self, phi, epsilon, action_space):
         '''
         With probability epsilon select a random action a_t, otherwise select at = max_{a} Q^*(phi(s_t), a; theta)
+        Args:
+            phi: transformed state
+            epsilon: greedy factor
+            action_space: the action space of current environment
         '''
         assert 0 <= epsilon <= 1, "epsilon must be a real value in [0, 1]"
         if torch.rand(1) <= epsilon:
-            return torch.randint(0, action_space)
+            return action_space.sample()
         else:
-            return torch.argmax(self.forward())
+            return torch.argmax(self.forward(phi))

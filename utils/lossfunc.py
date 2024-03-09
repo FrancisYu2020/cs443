@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-def regression_criterion(predict_q, target_q):
+def mseloss(predict_q, target_q):
     '''
     loss function to regress the predicted Q value
     '''

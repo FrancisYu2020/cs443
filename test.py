@@ -39,7 +39,7 @@ state = env.reset()
 # env.render()
 
 # Loop for a few steps
-for _ in range(10):
+for _ in range(10000):
     # Take a random action
     action = torch.tensor(1)  # Replace this with your action selection mechanism
     

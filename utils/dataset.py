@@ -14,41 +14,39 @@ expects square inputs. For the experiments in this paper, the function φ from a
 preprocessing to the last 4 frames of a history and stacks them to produce the input to the Q-function.
 '''
 
-def get_cnn_transforms(downsize=(110, 84), crop_size=(84, 84), train=True):
-    # cnn transformation
-    if train:
-        transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
-            transforms.Resize(size=downsize),
-            transforms.RandomCrop(size=crop_size),
-            transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    else:
-        transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
-            transforms.Resize(size=downsize),
-            transforms.CenterCrop(size=crop_size),
-            transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+def phi(downsize=(110, 84), crop_size=(84, 84)):
+    # cnn transforms phi
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize(size=downsize),
+        transforms.RandomCrop(size=crop_size),
+        transforms.ToTensor(),
+        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
     return transform
 
 class ReplayBuffer(Dataset):
-    def __init__(self, quadruples, transform):
+    def __init__(self, quadruples, capacity):
         """
         Args:
             quadruples: list of (s, a, r, s')
             transform (callable, optional): Optional transform to be applied on a sample.
         """
         self.quadruples = quadruples
-        self.transform = transform
+        self.capacity = capacity
+        self.curr_idx = 0
+    
+    def add(self, quadruple):
+        # we maintain a circle list for the quadruples to remove very old samples
+        if len(self.quadruples) < self.capacity:
+            self.quadruples.append(quadruple)
+        else:
+            self.quadruples[self.curr_idx % self.capacity] = quadruple
+        self.curr_idx += 1
         
     def __len__(self):
-        return len(self.quadruples)
+        return len(self.quadruples) - self.start_idx
 
     def __getitem__(self, idx):
-        s, a, r, s_next = self.quadruples[idx]
-        s = torch.cat([self.transform(frame) for frame in s], dim=0)
-        s_next = torch.cat([self.transform(frame) for frame in s_next], dim=0)
-        return s, a, r, s_next
+        idx += self.start_idx
+        return self.quadruples[idx]
