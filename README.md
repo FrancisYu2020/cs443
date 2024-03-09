@@ -15,5 +15,5 @@ CS443 project code repo for CS443
 
 
 ## TODO
-1. implement the epsilon decay algorithm
+1. implement the epsilon decay algorithm [done]
 2. modify the code to use skip frame (4 for all except 3 for Space Invader) as mentioned in the paper

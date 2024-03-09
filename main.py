@@ -9,10 +9,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import argparse
 import os
 from tqdm import tqdm
-# from utils.models import *
-# from utils.dataset import *
-# from utils.metrics import *
-# from utils.lossfunc import *
 import utils
 import wandb
 
@@ -38,6 +34,8 @@ else:
     args.frames_per_state = 4
 
 args.epsilon_decay_steps = args.epsilon_decay_frames // args.frames_per_state
+args.buffer_size /= args.frames_per_state
+args.training_steps = args.training_frames // args.frames_per_state
 
 args.exp_name = f"{args.atari_game}_epoch{args.epochs}_lr{args.lr}_wd{args.weight_decay}_bs{args.batch_size}"
 args.checkpoint_root = os.path.join('checkpoint', args.exp_name)
@@ -86,8 +84,8 @@ env = gym.make(args.atari_game)
 args.action_space = env.action_space
 phi_transforms = utils.dataset.phi()
 
-replay_buffer = utils.dataset.ReplayBuffer([], args.capacity) # initialize the replay buffer
-dataloader = DataLoader(replay_buffer)
+replay_buffer = utils.dataset.ReplayBuffer([], args.buffer_size) # initialize the replay buffer
+dataloader = DataLoader(replay_buffer, batch_size=args.batch_size, shuffle=True)
 
 # initialize Q state-action value network and the target Q network
 Q_net = utils.models.DQN(args.action_space.n).to(device)
@@ -95,12 +93,17 @@ target_net = Q_net.copy()
 optimizer = optim.RMSprop(Q_net.parameters(), lr=0.01, alpha=0.99, eps=1e-08, weight_decay=0, momentum=0, centered=False)
 
 step = 0 # current step number
+episode_id = 0
+episode_rewards = []
+total_reward = 0
 
 # main loop
-for episode in range(args.total_episodes):
+while step < args.training_steps:
+    episode_id += 1
+    episode_reward = 0
     # Initialise sequence s1 = {x1} and preprocessed sequenced φ_1 = φ(s_1)
-    state = env.reset() # s_0
-    phi = phi_transforms(state)
+    phi = phi_transforms(env.reset()) # φ_0 = φ(s_0)
+    phi = torch.vstack([phi.copy()] * args.frames_per_state)
 
     target_net.eval()
 
@@ -109,15 +112,22 @@ for episode in range(args.total_episodes):
         # With probability epsilon select a random action a_t otherwise select at = max_{a} Q^*(φ(s_t), a; θ)
         action = target_net.epsilon_greedy(phi, utils.get_epsilon(args, step), args.action_space)
         
+        phi_next, reward, done = [], 0, 0
         # Execute action at in emulator and observe reward r_t and image x_{t+1}
-        state_next, reward, done, _ = env.step(action)
+        for _ in range(args.frames_per_state):
+            next_frame, curr_reward, curr_done, _ = env.step(action)
+            phi_next.append(phi_transforms(next_frame))
+            reward += curr_reward
+            done |= curr_done
          
         # Set s_{t+1} = s_t, a_t, x_{t+1} and preprocess φ_{t+1} = φ(s_{t+1})
-        phi_next = phi_transforms(state_next)
+        phi_next = torch.vstack(phi_next)
 
         # Set y_j = r_j for terminal φ_{j+1}; rj + γ max_{a_0} Q(φ_{j+1}, a_0; θ) for non-terminal φ_{j+1}
         if not done:
             reward += args.gamma * Q_net(phi_next).max().detach() # need to detach from the computation graph
+        
+        episode_reward += reward
         
         # Store transition (φt, at, rt, φt+1) in D
         replay_buffer.add((phi, action, reward, phi_next))
@@ -131,10 +141,11 @@ for episode in range(args.total_episodes):
             loss.backward()
             optimizer.step()
             break
+        
+        step += 1
     
     target_net = Q_net.copy()
 
 env.close()
-scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=0)
 
 wandb.finish()

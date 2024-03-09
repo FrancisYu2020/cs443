@@ -13,10 +13,7 @@ def get_model(architecture_name, num_classes, window_size):
     '''
     if 'resnet' in architecture_name:
         dimension, architecture = architecture_name.split('-')
-        if dimension[0] == '2':
-            return RLS2DModel(num_classes, int(architecture[-2:]), window_size=window_size)
-        else:
-            return RLS3DModel(num_classes, int(architecture[-2:]), window_size=window_size)
+        return 
     else:
         raise NotImplementedError("ViT model part not implemented!")
 
