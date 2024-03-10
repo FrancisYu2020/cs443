@@ -45,6 +45,7 @@ class ConvBlock(nn.Module):
         super().__init__()
         self.model = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
+#             nn.BatchNorm2d(out_channels),
             nn.ReLU()
         )
     
@@ -52,23 +53,20 @@ class ConvBlock(nn.Module):
         return self.model(x)
     
 class DQN(nn.Module):
-    def __init__(self, action_space):
+    def __init__(self, action_space, in_channels=4):
         super().__init__()
-        self.conv1 = ConvBlock(4, 16, 8, 4)
-        self.conv2 = ConvBlock(16, 32, 4, 2)
+        self.conv1 = ConvBlock(in_channels, 4 * in_channels, 8, 4)
+        self.conv2 = ConvBlock(4 * in_channels, 8 * in_channels, 4, 2)
         self.fc = nn.Sequential(
-            nn.Linear(2592, 256), # (N, 32, 9, 9)
+            nn.Linear(in_channels * 648, 256), # (N, 32, 9, 9)
             nn.ReLU()
         )
         self.output = nn.Linear(256, action_space)
                     
     def forward(self, x):
         x = self.conv1(x)
-#         print(x.size())
         x = self.conv2(x)
-#         print(x.size())
         x = x.flatten(start_dim=1)
-#         print(x.size())
         x = self.fc(x)
         return self.output(x)
 
