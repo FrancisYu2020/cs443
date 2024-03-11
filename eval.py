@@ -63,10 +63,27 @@ if not os.path.exists(args.checkpoint_dir):
     raise FileNotFoundError(f'checkpoint directory {args.checkpoint_dir} not found!')
 
 if args.wandb_log:
-    with open(os.path.join(args.checkpoint_dir, "run_id.txt"), "r") as file:
-        resume_id = file.read()
-    # Resume the wandb run for evaluation
-    wandb.init(project="cs443", id=resume_id, resume=True)
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="cs443",
+    
+        # track hyperparameters and run metadata
+        config={
+            "game": args.atari_game,
+            "gamma": args.gamma,
+            "learning_rate": args.lr,
+            "weight_decay": args.weight_decay,
+            "batch_size": args.batch_size,
+            "optimizer": args.optimizer,
+            "total_frames": args.total_frames,
+            "episode_length": args.episode_length,
+            "experiment_id": args.exp_id
+        },
+    
+        # experiment name
+        name=args.exp_name + '_eval'
+    )
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -112,7 +129,7 @@ for episode_id in sorted(episode_checkpoints.keys()):
             # With probability epsilon select a random action a_t otherwise select at = max_{a} Q^*(φ(s_t), a; θ)
             action = Q_net.epsilon_greedy(phi.unsqueeze(0), args.epsilon, args.action_space).to(device)
         
-            phi_next, reward, done = [], torch.tensor(0.).to(device), 0
+            phi_next, reward, done = [], torch.tensor(0.), 0
     #         next_frame, reward, done, _ = env.step(action)
     #         phi_next = phi_transforms(Image.fromarray(next_frame)).to(device)
             # Execute action at in emulator and observe reward r_t and image x_{t+1}
@@ -121,7 +138,7 @@ for episode_id in sorted(episode_checkpoints.keys()):
                 phi_next.append(phi_transforms(Image.fromarray(next_frame)))
                 reward += curr_reward
                 done |= curr_done
-            reward = utils.normalize_reward(torch.tensor(reward, device=args.device))
+#             reward = utils.normalize_reward(torch.tensor(reward, device=args.device))
          
             # Set s_{t+1} = s_t, a_t, x_{t+1} and preprocess φ_{t+1} = φ(s_{t+1})
             phi_next = torch.vstack(phi_next).to(device)
@@ -142,7 +159,7 @@ for episode_id in sorted(episode_checkpoints.keys()):
         print(f'In episode {episode_id}, episode length: {episode_length}, episode reward: {episode_reward:.2f}')
     
     if args.wandb_log:
-        wandb.log({'eval/average_episode_length': np.array(episode_length).mean(), 'eval/average_reward': np.array(episode_rewards).mean()}, step=episode_id)
+        wandb.log({'average_episode_length': np.array(episode_length).mean(), 'average_reward': np.array(episode_rewards).mean()}, step=episode_id)
         
 env.close()
 

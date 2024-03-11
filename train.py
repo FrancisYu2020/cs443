@@ -30,16 +30,16 @@ parser.add_argument("--buffer_size", default=100000, type=int, help="buffer size
 parser.add_argument("--total_frames", default=40000, type=int, help="number of frames for training/eval")
 parser.add_argument("--episode_length", default=200, type=int, help="number of frames for training/eval")
 parser.add_argument("--optimizer", default='RMSprop', type=str, choices=['RMSprop', 'SGD', 'Adam', 'AdamW'], help="Choose the optimizer")
-parser.add_argument("--atari_game", default='SeaquestNoFrameskip-v4', \
-                    choices=['PongNoFrameskip-v4','BreakoutNoFrameskip-v4',\
-                             'SpaceInvadersNoFrameskip-v4','MsPacmanNoFrameskip-v4',\
-                             'QbertNoFrameskip-v4','SeaquestNoFrameskip-v4',\
-                             'BeamRiderNoFrameskip-v4'], help="name of the atari game environment")
-# parser.add_argument("--atari_game", default='SeaquestDeterministic-v4', \
-#                     choices=['PongDeterministic-v4','BreakoutDeterministic-v4',\
-#                              'SpaceInvadersDeterministic-v4','MsPacmanDeterministic-v4',\
-#                              'QbertDeterministic-v4','SeaquestDeterministic-v4',\
-#                              'BeamRiderDeterministic-v4'], help="name of the atari game environment")
+# parser.add_argument("--atari_game", default='SeaquestNoFrameskip-v4', \
+#                     choices=['PongNoFrameskip-v4','BreakoutNoFrameskip-v4',\
+#                              'SpaceInvadersNoFrameskip-v4','MsPacmanNoFrameskip-v4',\
+#                              'QbertNoFrameskip-v4','SeaquestNoFrameskip-v4',\
+#                              'BeamRiderNoFrameskip-v4'], help="name of the atari game environment")
+parser.add_argument("--atari_game", default='SeaquestDeterministic-v4', \
+                    choices=['PongDeterministic-v4','BreakoutDeterministic-v4',\
+                             'SpaceInvadersDeterministic-v4','MsPacmanDeterministic-v4',\
+                             'QbertDeterministic-v4','SeaquestDeterministic-v4',\
+                             'BeamRiderDeterministic-v4'], help="name of the atari game environment")
 parser.add_argument("--wandb_log", default=1, type=int, help="whether to use wandb to log this experiment")
 args = parser.parse_args()
 args.best_episode_reward = -float('inf')
@@ -48,14 +48,16 @@ args.best_episode = None
 if args.episode_length < 0:
     args.episode_length = float('inf')
 
-if args.atari_game == 'SpaceInvaders':
-    args.frames_per_state = 3
+if 'Deterministic' in args.atari_game:
+    args.in_channels = 1
+elif 'SpaceInvaders' in args.atari_game:
+    args.in_channels = 3
 else:
-    args.frames_per_state = 4
+    args.in_channels = 4
 
-args.epsilon_decay_steps = args.epsilon_decay_frames // args.frames_per_state
-args.buffer_size //= args.frames_per_state
-args.training_steps = args.total_frames // args.frames_per_state
+args.epsilon_decay_steps = args.epsilon_decay_frames // args.in_channels
+args.buffer_size //= args.in_channels
+args.training_steps = args.total_frames // args.in_channels
 
 # args.epsilon_decay_steps = args.epsilon_decay_frames
 # args.training_steps = args.total_frames
@@ -73,7 +75,7 @@ if not os.path.exists(args.checkpoint_dir):
 
 if args.wandb_log:
     # start a new wandb run to track this script
-    wandb.init(
+    run = wandb.init(
         # set the wandb project where this run will be logged
         project="cs443",
     
@@ -124,7 +126,7 @@ replay_buffer = utils.dataset.ReplayBuffer([], args.buffer_size) # initialize th
 dataloader = None
 
 # initialize Q state-action value network and the target Q network
-Q_net = utils.models.DQN(args.action_space.n, in_channels=4).to(device)
+Q_net = utils.models.DQN(args.action_space.n, in_channels=args.in_channels).to(device)
 target_net = deepcopy(Q_net)
 optimizer = utils.get_optimizer(args, Q_net)
 
@@ -140,7 +142,8 @@ while step < args.training_steps:
     
     # Initialise sequence s1 = {x1} and preprocessed sequenced φ_1 = φ(s_1)
     phi = phi_transforms(Image.fromarray(env.reset())).to(device) # φ_0 = φ(s_0)
-    phi = torch.vstack([deepcopy(phi)] * args.frames_per_state)
+    if args.in_channels == 4:
+        phi = torch.vstack([deepcopy(phi)] * args.in_channels)
 
     target_net.eval()
     
@@ -152,19 +155,21 @@ while step < args.training_steps:
         args.epsilon = utils.get_epsilon(args, step)
         action = target_net.epsilon_greedy(phi.unsqueeze(0), args.epsilon, args.action_space).to(device)
         
-        phi_next, reward, done = [], torch.tensor(0.).to(device), 0
-#         next_frame, reward, done, _ = env.step(action)
-#         phi_next = phi_transforms(Image.fromarray(next_frame)).to(device)
-        # Execute action at in emulator and observe reward r_t and image x_{t+1}
-        for i in range(args.frames_per_state):
-            next_frame, curr_reward, curr_done, _ = env.step(action)
-            phi_next.append(phi_transforms(Image.fromarray(next_frame)))
-            reward += curr_reward
-            done |= curr_done
+        if args.in_channels == 1:
+            next_frame, reward, done, _ = env.step(action)
+            phi_next = phi_transforms(Image.fromarray(next_frame)).to(device)
+        else:
+            # Execute action at in emulator and observe reward r_t and image x_{t+1}
+            phi_next, reward, done = [], torch.tensor(0.).to(device), 0
+            for i in range(args.in_channels):
+                next_frame, curr_reward, curr_done, _ = env.step(action)
+                phi_next.append(phi_transforms(Image.fromarray(next_frame)))
+                reward += curr_reward
+                done |= curr_done
+            # Set s_{t+1} = s_t, a_t, x_{t+1} and preprocess φ_{t+1} = φ(s_{t+1})
+            phi_next = torch.vstack(phi_next).to(device)
+            
         reward = utils.normalize_reward(torch.tensor(reward, device=args.device))
-         
-        # Set s_{t+1} = s_t, a_t, x_{t+1} and preprocess φ_{t+1} = φ(s_{t+1})
-        phi_next = torch.vstack(phi_next).to(device)
 
         episode_reward += reward
 
