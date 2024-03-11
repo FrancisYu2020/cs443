@@ -55,17 +55,18 @@ class ConvBlock(nn.Module):
 class DQN(nn.Module):
     def __init__(self, action_space, in_channels=4):
         super().__init__()
-        self.conv1 = ConvBlock(in_channels, 4 * in_channels, 8, 4)
-        self.conv2 = ConvBlock(4 * in_channels, 8 * in_channels, 4, 2)
+        self.conv = nn.Sequential(
+            ConvBlock(in_channels, 4 * in_channels, 8, 4),
+            ConvBlock(4 * in_channels, 8 * in_channels, 4, 2),
+        )
         self.fc = nn.Sequential(
-            nn.Linear(in_channels * 648, 256), # (N, 32, 9, 9)
+            nn.Linear(in_channels * 648, 256), # (N, 8 * in_channels, 9, 9)
             nn.ReLU()
         )
         self.output = nn.Linear(256, action_space)
                     
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
+        x = self.conv(x)
         x = x.flatten(start_dim=1)
         x = self.fc(x)
         return self.output(x)

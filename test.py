@@ -1,34 +1,3 @@
-# # import gym
-# # import torch
-
-# # # Create the environment
-# # # env = gym.make('Pong')  # 'Deterministic' version for consistent results
-# # env = gym.make('BreakoutDeterministic-v4')  # 'Deterministic' version for consistent results
-
-# # # Initialize the environment
-# # state = env.reset()
-
-# # # Display the initial game state
-# # # env.render()
-
-# # # Loop for a few steps
-# # for _ in range(10000):
-# #     # Take a random action
-# #     action = torch.tensor(1)  # Replace this with your action selection mechanism
-    
-# #     # Perform the action and get the new state, reward, done (whether the game is over), and info
-# #     next_state, reward, done, info = env.step(action)
-# # #     print(action, type(action))
-    
-# #     # Display the game state
-# # #     env.render()
-    
-# #     if done:
-# #         state = env.reset()
-
-# # # Close the environment
-# # env.close()
-
 # from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 # from stable_baselines3.common.env_util import make_vec_env
 # import gym
@@ -59,28 +28,26 @@
 # # Close the environments
 # vec_env.close()
 
-import gym
+# import torch
+# import utils.models
 
-# Create the environment
-env = gym.make('PongDeterministic-v4')
+# ckpt = torch.load('checkpoint/SeaquestNoFrameskip-v4_lr0.0001_wd1e-06/0/episode_1.ckpt')
+# model = utils.models.DQN(18)
+# model.load_state_dict(ckpt['state_dict'])
+# optimizer = torch.optim.RMSprop(model.parameters(), lr=0.01)
+# optimizer.load_state_dict(ckpt['optimizer'])
+# print(model)
+# for param_group in optimizer.param_groups:
+#     lr = param_group['lr']
+#     print(lr)
+import wandb
 
-# Reset the environment to start a new episode
-state = env.reset()
+# Start a new run
+run = wandb.init(project="cs443")
 
-# Render the initial state (optional, for visualization purposes)
-# env.render()
+# Access and print the run ID
+print("Run ID:", run.id)
 
-done = False
-while not done:
-    # Take a random action
-    action = env.action_space.sample()
-    
-    # Execute the action
-    next_state, reward, done, info = env.step(action)
-    print(next_state.shape)
-    
-    # Optionally render the game screen after taking the action
-#     env.render()
 
-# Close the environment when done
-env.close()
+# After completing your tasks
+wandb.finish()

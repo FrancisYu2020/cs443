@@ -1,3 +1,5 @@
+server_log
+*.out
 data
 Mat
 mix_train

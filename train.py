@@ -19,17 +19,17 @@ from PIL import Image
 parser = argparse.ArgumentParser()
 parser.add_argument("--lr", default=0.01, help="learning rate used to train the model", type=float)
 parser.add_argument("--weight_decay", default=0.1, help="weight decay used to train the model", type=float)
-parser.add_argument("--epochs", default=300, help="epochs used to train the model", type=int)
 parser.add_argument("--batch_size", default=32, help="batch size used to train the model", type=int)
-parser.add_argument("--gamma", default=0.999, type=float, help="discount factor gamma")
+parser.add_argument("--gamma", default=0.99, type=float, help="discount factor gamma")
 parser.add_argument("--alpha", default=0.99, type=float, help="discount factor gamma")
 parser.add_argument("--exp_id", default='debug', type=str, help="the id of the experiment")
 parser.add_argument("--max_epsilon", default=1, type=float, help="the beginning epsilon (max epsilon)")
 parser.add_argument("--min_epsilon", default=0.1, type=float, help="the final epsilon after decay during training (min epsilon)")
-parser.add_argument("--epsilon_decay_frames", default=10000, type=int, help="the final epsilon (min epsilon)")
-parser.add_argument("--buffer_size", default=10000, type=int, help="buffer size (number of frames)")
-parser.add_argument("--training_frames", default=40000, type=int, help="number of frames for training")
-parser.add_argument("--episode_length", default=200, type=int, help="number of frames for training")
+parser.add_argument("--epsilon_decay_frames", default=100000, type=int, help="the final epsilon (min epsilon)")
+parser.add_argument("--buffer_size", default=100000, type=int, help="buffer size (number of frames)")
+parser.add_argument("--total_frames", default=40000, type=int, help="number of frames for training/eval")
+parser.add_argument("--episode_length", default=200, type=int, help="number of frames for training/eval")
+parser.add_argument("--optimizer", default='RMSprop', type=str, choices=['RMSprop', 'SGD', 'Adam', 'AdamW'], help="Choose the optimizer")
 parser.add_argument("--atari_game", default='SeaquestNoFrameskip-v4', \
                     choices=['PongNoFrameskip-v4','BreakoutNoFrameskip-v4',\
                              'SpaceInvadersNoFrameskip-v4','MsPacmanNoFrameskip-v4',\
@@ -42,6 +42,8 @@ parser.add_argument("--atari_game", default='SeaquestNoFrameskip-v4', \
 #                              'BeamRiderDeterministic-v4'], help="name of the atari game environment")
 parser.add_argument("--wandb_log", default=1, type=int, help="whether to use wandb to log this experiment")
 args = parser.parse_args()
+args.best_episode_reward = -float('inf')
+args.best_episode = None
 
 if args.episode_length < 0:
     args.episode_length = float('inf')
@@ -53,13 +55,13 @@ else:
 
 args.epsilon_decay_steps = args.epsilon_decay_frames // args.frames_per_state
 args.buffer_size //= args.frames_per_state
-args.training_steps = args.training_frames // args.frames_per_state
+args.training_steps = args.total_frames // args.frames_per_state
 
 # args.epsilon_decay_steps = args.epsilon_decay_frames
-# args.training_steps = args.training_frames
+# args.training_steps = args.total_frames
 print(f'Total training steps: {args.training_steps}')
 
-args.exp_name = f"{args.atari_game}_lr{args.lr}_wd{args.weight_decay}"
+args.exp_name = f"{args.atari_game}_gamma{args.gamma}_lr{args.lr}_wd{args.weight_decay}_{args.optimizer}"
 args.checkpoint_root = os.path.join('checkpoint', args.exp_name)
 if not os.path.exists(args.checkpoint_root):
     os.mkdir(args.checkpoint_root)
@@ -78,14 +80,26 @@ if args.wandb_log:
         # track hyperparameters and run metadata
         config={
             "game": args.atari_game,
+            "gamma": args.gamma,
             "learning_rate": args.lr,
             "weight_decay": args.weight_decay,
             "batch_size": args.batch_size,
+            "optimizer": args.optimizer,
+            "total_frames": args.total_frames,
+            "buffer_size": args.buffer_size,
+            "episode_length": args.episode_length,
+            "max_epsilon": args.max_epsilon,
+            "min_epsilon": args.min_epsilon,
+            "epsilon_decay_frames": args.epsilon_decay_frames,
+            "experiment_id": args.exp_id
         },
     
         # experiment name
         name=args.exp_name
     )
+    
+    with open(os.path.join(args.checkpoint_dir, "run_id.txt"), "w") as file:
+        file.write(run.id)
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -111,10 +125,8 @@ dataloader = None
 
 # initialize Q state-action value network and the target Q network
 Q_net = utils.models.DQN(args.action_space.n, in_channels=4).to(device)
-target_net = copy(Q_net)
-# optimizer = torch.optim.AdamW(Q_net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-# optimizer = torch.optim.SGD(Q_net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
-optimizer = optim.RMSprop(Q_net.parameters(), lr=args.lr, alpha=0.99, eps=1e-08, weight_decay=args.weight_decay, momentum=0, centered=False)
+target_net = deepcopy(Q_net)
+optimizer = utils.get_optimizer(args, Q_net)
 
 step = 0 # current step number
 episode_id = 0
@@ -124,20 +136,21 @@ total_reward = 0
 # main loop
 while step < args.training_steps:
     episode_id += 1
-    episode_reward = 0
+    episode_reward, episode_length, episode_loss = 0, 0, 0
+    
     # Initialise sequence s1 = {x1} and preprocessed sequenced φ_1 = φ(s_1)
     phi = phi_transforms(Image.fromarray(env.reset())).to(device) # φ_0 = φ(s_0)
     phi = torch.vstack([deepcopy(phi)] * args.frames_per_state)
 
     target_net.eval()
     
-    episode_length = 0
     # collect the trajectory for T timestamps or until terminal state
     t = 0
     while t < args.episode_length:
         episode_length += 1
         # With probability epsilon select a random action a_t otherwise select at = max_{a} Q^*(φ(s_t), a; θ)
-        action = target_net.epsilon_greedy(phi.unsqueeze(0), utils.get_epsilon(args, step), args.action_space).to(device)
+        args.epsilon = utils.get_epsilon(args, step)
+        action = target_net.epsilon_greedy(phi.unsqueeze(0), args.epsilon, args.action_space).to(device)
         
         phi_next, reward, done = [], torch.tensor(0.).to(device), 0
 #         next_frame, reward, done, _ = env.step(action)
@@ -175,43 +188,34 @@ while step < args.training_steps:
             # Perform a gradient descent step on (y_j - Q(φ_j , a_j ; θ))^2 according to equation 3
             optimizer.zero_grad()
             loss.backward()
-#             for name, module in Q_net.named_modules():
-#                 if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
-#                     wandb.log({name: module.weight.norm()}, step=step)
+            episode_loss += loss.item()
             optimizer.step()
             break
-
-#         try:
-#             for s, a, r, s_next in dataloader:
-# #             print(s.size(), a, r, s_next.size())
-#                 Q_pred = torch.gather(Q_net(s), 1, a.to(device).unsqueeze(1)).squeeze(1)
-#                 loss = F.smooth_l1_loss(Q_pred, r)
-# #                 loss = F.mse_loss(Q_pred, r)
-#                 # Perform a gradient descent step on (y_j - Q(φ_j , a_j ; θ))^2 according to equation 3
-#                 optimizer.zero_grad()
-#                 loss.backward()
-#                 optimizer.step()
-#                 break
-#         except:
-#             print(step)
         
         if done:
             break
         
         t += 1
         step += 1
+        if step % 1000 == 0:
+            target_net = deepcopy(Q_net)
+        
         
     total_reward += episode_reward
     average_reward = total_reward / episode_id
     if args.wandb_log:
-        wandb.log({'episode length': episode_length, 'episode reward': episode_reward, 'average reward': average_reward}, step=step)
+        wandb.log({'episode length': episode_length, 'episode reward': episode_reward, 'average reward': average_reward, 'episode avg loss': episode_loss / episode_length}, step=episode_id)
     print(f'In episode {episode_id}, episode length: {episode_length}, episode reward: {episode_reward:.2f}, average reward: {average_reward:.2f}')
     
     if episode_id % 100 == 0:
-        torch.save(Q_net.state_dict(), os.path.join(args.checkpoint_dir, f'episode_{episode_id}.ckpt'))
-        print('model saved')
-    target_net = deepcopy(Q_net)
-
+        torch.save({'episode_id': episode_id, 'step': step, 'state_dict': Q_net.state_dict(), 'optimizer': optimizer.state_dict(), 'epsilon': args.epsilon}, os.path.join(args.checkpoint_dir, f'episode_{episode_id}.ckpt'))
+        print(f'Episode {episode_id} checkpoint saved!')
+    if episode_reward > args.best_episode_reward:
+        args.best_episode = episode_id
+        args.best_episode_reward = episode_reward
+        torch.save({'episode_id': episode_id, 'step': step, 'state_dict': Q_net.state_dict(), 'optimizer': optimizer.state_dict(), 'epsilon': args.epsilon}, os.path.join(args.checkpoint_dir, f'best_model.ckpt'))
+        print(f'At episode {episode_id}, best checkpoint saved!')
+        
 env.close()
 
 if args.wandb_log:
