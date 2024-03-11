@@ -4,7 +4,6 @@ data
 Mat
 mix_train
 *.ipynb
-*.sh
 __pycache__
 test.py
 *.png
