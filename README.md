@@ -11,7 +11,7 @@ CS443 project code repo for CS443
 
 ## Difference
 1. In our implementation, we use OpenAI gym for Atari games which only supports one frame each time while the original paper stacks 4 frames together as one state. (currently trying stacked version with openai gym, seems not make sense, compare with single frame later)
-2. In original paper, timestep 1 is used to describe the initial state and the first quadruple collected is (s_1, a_1, r_1, s_2), while for our implementation convenience, we use timestep 0 for the initial state and the first quadruple collected is (s_0, a_0, r_0, s_1).
+2. In original paper, timestep 1 is used to describe the initial state and the first quadruple collected is $(s_1, a_1, r_1, s_2)$, while for our implementation convenience, we use timestep 0 for the initial state and the first quadruple collected is $(s_0, a_0, r_0, s_1)$.
 3. Due to the computation resource limit, instead of using a buffer for storing as large as 1M frames, we store 160k frames in the replay buffer instead, this may affect the final results.
 4. $\gamma$ is not specified in the paper, we use $\gamma = 0.99$ for all the environment in this implementation.
 5. We also try single skip frame as input in our implementation, in that case, 4M frames are used for training.
